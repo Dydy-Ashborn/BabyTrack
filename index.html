@@ -1,0 +1,3050 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BabyTrack</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <style>
+        .glass {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.7);
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .pulse-gentle {
+            animation: pulse-gentle 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-gentle {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .medication-available {
+            border-color: #10b981;
+            background-color: #f0fdf4;
+        }
+
+        .medication-waiting {
+            border-color: #f59e0b;
+            background-color: #fffbeb;
+        }
+
+        .medication-soon {
+            border-color: #ef4444;
+            background-color: #fef2f2;
+        }
+
+        .appointment-today {
+            border-color: #ef4444;
+            background-color: #fef2f2;
+        }
+
+        .appointment-upcoming {
+            border-color: #f59e0b;
+            background-color: #fffbeb;
+        }
+    </style>
+
+    <!-- Logo BabyTrack en SVG -->
+    <svg id="babytrack-logo" style="display: none;">
+        <defs>
+            <symbol id="logo-symbol" viewBox="0 0 200 120">
+                <!-- Montre/cadre -->
+                <rect x="20" y="30" width="100" height="60" rx="20" ry="20" fill="url(#gradient1)" stroke="#2563eb"
+                    stroke-width="4" />
+                <rect x="25" y="35" width="90" height="50" rx="15" ry="15" fill="white" />
+
+                <!-- Visage bébé -->
+                <circle cx="70" cy="60" r="20" fill="white" stroke="#2563eb" stroke-width="3" />
+                <path d="M70 45 Q75 40, 80 45" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" />
+                <circle cx="65" cy="55" r="2" fill="#2563eb" />
+                <circle cx="75" cy="55" r="2" fill="#2563eb" />
+                <path d="M65 65 Q70 70, 75 65" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" />
+
+                <!-- Bracelet -->
+                <rect x="10" y="45" width="15" height="30" rx="7" ry="7" fill="url(#gradient2)" />
+                <rect x="115" y="45" width="15" height="30" rx="7" ry="7" fill="url(#gradient2)" />
+
+                <!-- Gradients -->
+                <defs>
+                    <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                    </linearGradient>
+                    <linearGradient id="gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#ec4899;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+            </symbol>
+        </defs>
+    </svg>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Configuration Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyCPQpB3cYk2sgbOVQ8KLbU1Qj2U67D2rZ4",
+            authDomain: "suivi-loan.firebaseapp.com",
+            projectId: "suivi-loan",
+            storageBucket: "suivi-loan.firebasestorage.app",
+            messagingSenderId: "334984699415",
+            appId: "1:334984699415:web:8b41abb9360d31efabc652"
+        };
+
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+
+        // Constantes et données de référence
+        const FEEDING_GUIDE = {
+            1: { volume: '5–10ml', frequency: '8–12 fois/24h', total: '40–120ml', comment: 'Estomac très petit, petites quantités très fréquentes' },
+            2: { volume: '10–20ml', frequency: '8–12 fois/24h', total: '80–240ml', comment: 'Progression rapide, petites tétées fréquentes' },
+            3: { volume: '20–30ml', frequency: '8–10 fois/24h', total: '160–300ml', comment: 'Bébé commence à boire plus régulièrement' },
+            4: { volume: '45–60ml', frequency: '6–8 fois/24h', total: '270–480ml', comment: 'Adaptation au lait, souvent nécessaire de compléter un peu' },
+            5: { volume: '60–80ml', frequency: '6–8 fois/24h', total: '360–640ml', comment: 'Volumes plus importants, espacer les biberons' },
+            6: { volume: '60–80ml', frequency: '6–8 fois/24h', total: '360–640ml', comment: 'Rot + massages si besoin, surveiller selles et couches' },
+            7: { volume: '60–80ml', frequency: '6–8 fois/24h', total: '360–640ml', comment: 'Fin de première semaine, rythme qui se stabilise' }
+        };
+
+        const FEEDING_RANGES = [
+            { days: [8, 9, 10, 11, 12, 13, 14], volume: '60–90ml', frequency: '6–8 fois/24h', total: '360–720ml', comment: 'Deuxième semaine, augmentation progressive' },
+            { days: [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28], volume: '90–120ml', frequency: '6–7 fois/24h', total: '540–840ml', comment: 'Troisième et quatrième semaines' }
+        ];
+
+        const FEEDING_MONTHS = {
+            1: { volume: '120–150ml', frequency: '5–6 fois/24h', total: '600–900ml', comment: '1 mois - Volumes stabilisés' },
+            2: { volume: '150–180ml', frequency: '5–6 fois/24h', total: '750–1080ml', comment: '2 mois - Croissance régulière' },
+            3: { volume: '180–210ml', frequency: '5 fois/24h', total: '900–1050ml', comment: '3 mois - Rythme bien établi' },
+            4: { volume: '210ml env.', frequency: '4–5 fois/24h', total: '840–1050ml', comment: '4 mois - Préparation diversification' },
+            5: { volume: '210–240ml', frequency: '4–5 fois/24h', total: '840–1200ml', comment: '5 mois - Possible début diversification' },
+            6: {
+                volume: '180–210ml (avec repas)',
+                frequency: '4 biberons/24h',
+                total: '500ml minimum + laitages',
+                comment: '6 mois - Diversification : introduction légumes puis fruits'
+            },
+            7: {
+                volume: '180–210ml (avec repas)',
+                frequency: '4 biberons/24h',
+                total: '500ml minimum + laitages',
+                comment: '7 mois - Diversification active : légumes variés, fruits en compote'
+            },
+            8: {
+                volume: '150–180ml (en complément)',
+                frequency: '3–4 biberons/24h',
+                total: '500ml minimum + laitages',
+                comment: '8 mois - Introduction protéines (10g/j) et féculents'
+            },
+            9: {
+                volume: '150–180ml (en complément)',
+                frequency: '3–4 biberons/24h',
+                total: '500ml minimum + laitages',
+                comment: '9 mois - Texture moins lisse, premiers morceaux fondants'
+            },
+            10: {
+                volume: '150–180ml',
+                frequency: '3 biberons/24h',
+                total: '500ml minimum + laitages',
+                comment: '10 mois - Tous fruits et légumes, fromages pasteurisés'
+            },
+            11: {
+                volume: '150–180ml',
+                frequency: '3 biberons/24h',
+                total: '500ml minimum + laitages',
+                comment: '11 mois - Morceaux plus gros, apprentissage mastication'
+            },
+            12: {
+                volume: '210–240ml',
+                frequency: '2–3 biberons/24h',
+                total: '500ml minimum',
+                comment: '12 mois - Lait de croissance, alimentation diversifiée'
+            },
+            13: {
+                volume: '210–240ml',
+                frequency: '2–3 biberons/24h',
+                total: '500ml minimum',
+                comment: '13 mois - Repas comme la famille (adapté), 20g protéines'
+            },
+            14: {
+                volume: '210–240ml',
+                frequency: '2–3 biberons/24h',
+                total: '500ml minimum',
+                comment: '14 mois - Introduction miel possible, tous fromages'
+            },
+            15: {
+                volume: '250–300ml',
+                frequency: '2 biberons/24h',
+                total: '500ml minimum',
+                comment: '15 mois - Transition vers tasse, autonomie alimentaire'
+            },
+            18: {
+                volume: '250–300ml',
+                frequency: '2 biberons/24h',
+                total: '500ml minimum',
+                comment: '18 mois - Arrêt progressif biberon, lait de croissance jusqu\'à 3 ans'
+            },
+            24: {
+                volume: '250ml (tasse/verre)',
+                frequency: '2 prises/24h',
+                total: '500ml minimum',
+                comment: '24 mois - Lait en tasse, alimentation complète comme famille'
+            }
+        };
+        // Guide de diversification alimentaire
+        const DIVERSIFICATION_GUIDE = {
+            // 4-6 mois : Découverte des saveurs
+            4: {
+                phase: 'Découverte des saveurs',
+                principles: [
+                    'Le lait reste l\'aliment principal',
+                    'Un seul aliment nouveau à la fois',
+                    'Textures très lisses uniquement',
+                    'Commencer par les légumes au déjeuner'
+                ],
+                vegetables: [
+                    { name: 'Carotte', texture: 'Purée lisse', quantity: '1-2 c. à café', preparation: 'Bien cuite et mixée' },
+                    { name: 'Haricot vert', texture: 'Purée lisse', quantity: '1-2 c. à café', preparation: 'Bien cuits et mixés' },
+                    { name: 'Courgette', texture: 'Purée lisse', quantity: '1-2 c. à café', preparation: 'Sans pépins ni peau' },
+                    { name: 'Potiron', texture: 'Purée lisse', quantity: '1-2 c. à café', preparation: 'Chair uniquement' },
+                    { name: 'Brocoli', texture: 'Purée lisse', quantity: '1-2 c. à café', preparation: 'Fleurettes cuites' }
+                ],
+                fruits: [
+                    { name: 'Pomme', texture: 'Compote lisse', quantity: '1-2 c. à café', preparation: 'Cuite sans sucre' },
+                    { name: 'Poire', texture: 'Compote lisse', quantity: '1-2 c. à café', preparation: 'Cuite sans sucre' },
+                    { name: 'Banane', texture: 'Écrasée lisse', quantity: '1-2 c. à café', preparation: 'Bien mûre' }
+                ],
+                avoid: ['Protéines', 'Féculents', 'Sel', 'Sucre', 'Miel']
+            },
+            6: {
+                phase: 'Diversification active',
+                principles: [
+                    'Introduction des protéines et féculents',
+                    'Textures moins lisses progressivement',
+                    'Alternance viande/poisson/œuf',
+                    '10g de protéines maximum par jour'
+                ],
+                vegetables: [
+                    { name: 'Tous les légumes précédents', texture: 'Purée épaisse', quantity: '100-130g', preparation: 'Moulinés' },
+                    { name: 'Épinard', texture: 'Purée épaisse', quantity: '100-130g', preparation: 'Bien cuits' },
+                    { name: 'Blanc de poireau', texture: 'Purée épaisse', quantity: '100-130g', preparation: 'Partie blanche uniquement' },
+                    { name: 'Petits pois', texture: 'Purée épaisse', quantity: '100-130g', preparation: 'Sans peau' }
+                ],
+                fruits: [
+                    { name: 'Pêche', texture: 'Compote épaisse', quantity: '60-80g', preparation: 'Sans peau' },
+                    { name: 'Abricot', texture: 'Compote épaisse', quantity: '60-80g', preparation: 'Sans noyau' },
+                    { name: 'Fruits précédents', texture: 'Compote épaisse', quantity: '60-80g', preparation: 'Texture évolutive' }
+                ],
+                proteins: [
+                    { name: 'Viande blanche', texture: 'Mixée fine', quantity: '10g (2 c. à café)', preparation: 'Bien cuite' },
+                    { name: 'Poisson blanc', texture: 'Mixé fin', quantity: '10g (2 c. à café)', preparation: 'Sans arêtes' },
+                    { name: 'Jaune d\'œuf', texture: 'Mixé', quantity: '1/4 d\'œuf dur', preparation: 'Bien cuit' }
+                ],
+                starches: [
+                    { name: 'Pomme de terre', texture: 'Purée lisse', quantity: 'Mélangé aux légumes', preparation: 'Bien cuite' },
+                    { name: 'Patate douce', texture: 'Purée lisse', quantity: 'Mélangé aux légumes', preparation: 'Bien cuite' },
+                    { name: 'Riz', texture: 'Très cuit et mixé', quantity: 'Mélangé aux légumes', preparation: 'Bien cuit' }
+                ],
+                dairy: [
+                    { name: 'Yaourt bébé', texture: 'Lisse', quantity: '1 pot', preparation: 'Spécifique bébé' },
+                    { name: 'Fromage blanc bébé', texture: 'Lisse', quantity: '1 pot', preparation: 'Spécifique bébé' }
+                ]
+            },
+            8: {
+                phase: 'Premiers morceaux',
+                principles: [
+                    'Introduction de tous les aliments',
+                    'Morceaux fondants et écrasés',
+                    'Développement de la mastication',
+                    'Fromages pasteurisés autorisés'
+                ],
+                vegetables: [
+                    { name: 'Tous légumes', texture: 'Écrasés/petits morceaux', quantity: '120-150g', preparation: 'Morceaux fondants' },
+                    { name: 'Légumes crus', texture: 'Râpés fins', quantity: 'En petite quantité', preparation: 'Bien mûrs' }
+                ],
+                fruits: [
+                    { name: 'Tous fruits', texture: 'Écrasés/morceaux', quantity: '80-100g', preparation: 'Mûrs et tendres' },
+                    { name: 'Banane', texture: 'Morceaux', quantity: 'Libre', preparation: 'En morceaux fondants' }
+                ],
+                proteins: [
+                    { name: 'Viande rouge', texture: 'Hachée', quantity: '10g', preparation: 'Bien cuite et hachée' },
+                    { name: 'Poisson gras', texture: 'Émietté', quantity: '10g', preparation: '1 fois par semaine' },
+                    { name: 'Œuf entier', texture: 'Haché', quantity: '1/4 d\'œuf dur', preparation: 'Dur et haché' }
+                ],
+                starches: [
+                    { name: 'Pâtes', texture: 'Petites/écrasées', quantity: 'Selon appétit', preparation: 'Bien cuites' },
+                    { name: 'Pain', texture: 'Croûtons', quantity: 'Quelques morceaux', preparation: 'Pour la mastication' },
+                    { name: 'Céréales', texture: 'Cuites', quantity: 'Selon appétit', preparation: 'Semoule, quinoa...' }
+                ],
+                dairy: [
+                    { name: 'Fromages à pâte cuite', texture: 'Petits morceaux', quantity: '15g/jour', preparation: 'Gruyère, comté...' },
+                    { name: 'Yaourt nature', texture: 'Standard', quantity: '1 pot', preparation: 'Non sucré' }
+                ]
+            },
+            12: {
+                phase: 'Alimentation de grand',
+                principles: [
+                    'Alimentation comme la famille',
+                    'Éviter sel, sucre et miel',
+                    '20g de protéines par jour',
+                    'Lait de croissance jusqu\'à 3 ans'
+                ],
+                vegetables: [
+                    { name: 'Tous légumes', texture: 'Normaux', quantity: 'Selon appétit', preparation: 'Comme la famille' }
+                ],
+                fruits: [
+                    { name: 'Tous fruits', texture: 'Normaux', quantity: 'Selon appétit', preparation: 'Crus ou cuits' }
+                ],
+                proteins: [
+                    { name: 'Toutes viandes', texture: 'Coupée', quantity: '20g', preparation: 'Bien cuites' },
+                    { name: 'Tous poissons', texture: 'Coupé', quantity: '20g', preparation: 'Sans arêtes' },
+                    { name: 'Œuf', texture: 'Normal', quantity: '1/2 œuf', preparation: 'Toutes cuissons' }
+                ],
+                starches: [
+                    { name: 'Tous féculents', texture: 'Normaux', quantity: 'Selon appétit', preparation: 'Variés' }
+                ],
+                dairy: [
+                    { name: 'Tous fromages au lait cru', texture: 'Normaux', quantity: '20g/jour', preparation: 'Qualité' }
+                ],
+                newFoods: [
+                    { name: 'Miel', age: '12 mois', note: 'Possible après 1 an' },
+                    { name: 'Fruits de mer', age: '12 mois', note: 'Bien cuits' },
+                    { name: 'Fruits à coque', age: '12 mois', note: 'En poudre ou purée' }
+                ]
+            }
+        };
+        // Guide de motricité par âge
+        const MOTOR_DEVELOPMENT_GUIDE = {
+            0: {
+                title: 'La découverte du corps (0-3 mois)',
+                description: 'Mouvements principalement réflexes. Le bébé travaille sur le renforcement de son cou et de son dos.',
+                skills: [
+                    'Lève et tourne la tête en position ventrale',
+                    'Agite les bras et jambes de façon non coordonnée',
+                    'Saisit des objets par réflexe d\'agrippement',
+                    'Fixe du regard et suit des yeux'
+                ],
+                exercises: [
+                    {
+                        name: 'Tummy Time',
+                        description: 'Placer bébé sur le ventre sur un tapis',
+                        duration: 'Commencer 2-3 minutes, augmenter progressivement',
+                        benefits: 'Renforce cou, dos et épaules',
+                        safety: 'Toujours sous surveillance'
+                    },
+                    {
+                        name: 'Massage doux',
+                        description: 'Masser doucement bras et jambes',
+                        duration: '5-10 minutes',
+                        benefits: 'Stimule les muscles et la circulation',
+                        safety: 'Mouvements très doux'
+                    },
+                    {
+                        name: 'Jouets suspendus',
+                        description: 'Portique d\'éveil au-dessus de bébé',
+                        duration: '10-15 minutes',
+                        benefits: 'Encourage à lever la tête et suivre du regard',
+                        safety: 'Jouets bien fixés'
+                    }
+                ]
+            },
+            3: {
+                title: 'Le contrôle et le roulé-boulé (3-6 mois)',
+                description: 'Bébé commence à mieux contrôler ses mouvements et à se déplacer.',
+                skills: [
+                    'Se retourne du dos sur le ventre',
+                    'Se redresse sur les bras en position ventrale',
+                    'Saisit volontairement des objets',
+                    'Porte les objets à sa bouche'
+                ],
+                exercises: [
+                    {
+                        name: 'Encourager le retournement',
+                        description: 'Placer un jouet sur le côté pour inciter à se tourner',
+                        duration: '5-10 minutes plusieurs fois/jour',
+                        benefits: 'Développe force du tronc',
+                        safety: 'Surface sécurisée'
+                    },
+                    {
+                        name: 'Position "avion"',
+                        description: 'Tenir bébé sur le ventre, légèrement surélevé',
+                        duration: '1-2 minutes',
+                        benefits: 'Renforce muscles du dos et du cou',
+                        safety: 'Tenir fermement'
+                    },
+                    {
+                        name: 'Tapis d\'éveil',
+                        description: 'Jouets suspendus à attraper',
+                        duration: '15-20 minutes',
+                        benefits: 'Coordination œil-main',
+                        safety: 'Jouets adaptés à l\'âge'
+                    }
+                ]
+            },
+            6: {
+                title: 'Le quatre pattes et la position assise (6-9 mois)',
+                description: 'Période d\'explosion motrice. Bébé devient mobile et explore activement.',
+                skills: [
+                    'S\'assied seul sans soutien',
+                    'Commence à ramper ou faire du quatre pattes',
+                    'Se déplace en roulant ou glissant',
+                    'Utilise la pince pouce-index (motricité fine)'
+                ],
+                exercises: [
+                    {
+                        name: 'Espace sécurisé d\'exploration',
+                        description: 'Zone avec coussins et jouets pour ramper',
+                        duration: '30-45 minutes/jour',
+                        benefits: 'Développe mobilité et confiance',
+                        safety: 'Sécuriser l\'environnement'
+                    },
+                    {
+                        name: 'Encourager le quatre pattes',
+                        description: 'Placer jouet hors de portée pour motiver déplacement',
+                        duration: '10-15 minutes',
+                        benefits: 'Coordination et force des membres',
+                        safety: 'Objets sécurisés'
+                    },
+                    {
+                        name: 'Bouteille sensorielle',
+                        description: 'Bouteille avec pâtes ou billes (fermée)',
+                        duration: '10-15 minutes',
+                        benefits: 'Stimulation auditive et manipulation',
+                        safety: 'Bouteille bien fermée'
+                    }
+                ]
+            },
+            9: {
+                title: 'Les premiers pas (9-12 mois)',
+                description: 'Bébé se prépare à la marche. Il cherche à se hisser debout.',
+                skills: [
+                    'Se hisse debout en s\'appuyant sur les meubles',
+                    'Se déplace en "longeant" les meubles',
+                    'Se tient debout sans soutien quelques secondes',
+                    'Fait ses premiers pas'
+                ],
+                exercises: [
+                    {
+                        name: 'Jouets à pousser',
+                        description: 'Chariot de marche ou jouet à pousser',
+                        duration: '15-20 minutes',
+                        benefits: 'Équilibre et confiance en marchant',
+                        safety: 'Jouet stable et adapté'
+                    },
+                    {
+                        name: 'Objets en hauteur',
+                        description: 'Jouets sur canapé bas pour se redresser',
+                        duration: '10-15 minutes',
+                        benefits: 'Force des jambes',
+                        safety: 'Hauteur adaptée'
+                    },
+                    {
+                        name: 'Marche accompagnée',
+                        description: 'Tenir les deux mains et marcher ensemble',
+                        duration: '5-10 minutes',
+                        benefits: 'Confiance et équilibre',
+                        safety: 'Ne pas forcer'
+                    }
+                ]
+            },
+            12: {
+                title: 'La marche en toute confiance (12-18 mois)',
+                description: 'Bébé devient un petit explorateur sur deux jambes.',
+                skills: [
+                    'Marche seul avec assurance',
+                    'Monte et descend escaliers avec aide',
+                    'S\'accroupit et se relève facilement',
+                    'Lance une balle'
+                ],
+                exercises: [
+                    {
+                        name: 'Jeu du ballon',
+                        description: 'Faire rouler un ballon pour encourager à courir',
+                        duration: '10-15 minutes',
+                        benefits: 'Coordination et équilibre dynamique',
+                        safety: 'Espace dégagé'
+                    },
+                    {
+                        name: 'Jeux de construction',
+                        description: 'Blocs à empiler et encastrer',
+                        duration: '15-20 minutes',
+                        benefits: 'Motricité fine et coordination',
+                        safety: 'Pièces adaptées à l\'âge'
+                    },
+                    {
+                        name: 'Mini-parcours',
+                        description: 'Coussins et tunnels à franchir',
+                        duration: '20-30 minutes',
+                        benefits: 'Confiance motrice et exploration',
+                        safety: 'Obstacles bas et sûrs'
+                    }
+                ]
+            },
+            18: {
+                title: 'Exploration et affinement (18-24 mois)',
+                description: 'Perfectionnement des acquis et développement de l\'agilité.',
+                skills: [
+                    'Court avec plus d\'assurance',
+                    'Monte escaliers en alternant les pieds',
+                    'Commence à sauter sur place',
+                    'Manipule objets avec précision'
+                ],
+                exercises: [
+                    {
+                        name: 'Parcours d\'obstacles',
+                        description: 'Slalom, marches, tunnels',
+                        duration: '20-30 minutes',
+                        benefits: 'Agilité et planification motrice',
+                        safety: 'Supervision constante'
+                    },
+                    {
+                        name: 'Jeux de précision',
+                        description: 'Enfiler grosses perles, puzzles simples',
+                        duration: '10-15 minutes',
+                        benefits: 'Motricité fine et concentration',
+                        safety: 'Pièces non avalables'
+                    },
+                    {
+                        name: 'Danse et musique',
+                        description: 'Bouger en rythme sur la musique',
+                        duration: '10-15 minutes',
+                        benefits: 'Coordination et expression corporelle',
+                        safety: 'Espace libre'
+                    }
+                ]
+            }
+        };
+
+        const BabyTracker = () => {
+            // États principaux
+            const [user, setUser] = useState(null);
+            const [entries, setEntries] = useState([]);
+            const [medications, setMedications] = useState([]);
+            const [appointments, setAppointments] = useState([]);
+            const [stocks, setStocks] = useState({});
+
+            // États d'interface
+            const [showAuth, setShowAuth] = useState(true);
+            const [authMode, setAuthMode] = useState('login');
+            const [currentView, setCurrentView] = useState('daily');
+            const [periodView, setPeriodView] = useState('daily');
+            const [showForm, setShowForm] = useState(false);
+            const [formType, setFormType] = useState('');
+            const [editingId, setEditingId] = useState(null);
+            const [currentPage, setCurrentPage] = useState(0);
+            const [historyFilter, setHistoryFilter] = useState('today');
+
+            // États des formulaires
+            const [authData, setAuthData] = useState({
+                code: '',
+                babyName: '',
+                birthDate: '',
+                birthTime: '06:00',
+                birthWeight: '',
+                birthHeight: '',
+                parents: '',
+                gender: 'boy'
+            });
+
+            const [formData, setFormData] = useState({
+                time: '',
+                date: '',
+                amount: '',
+                hasPee: false,
+                hasPoop: false,
+                poopQuantity: '',
+                poopConsistency: '',
+                poopColor: ''
+            });
+
+            const [medicationData, setMedicationData] = useState({
+                name: '',
+                dosage: '',
+                date: '',
+                time: '',
+                interval: ''
+            });
+
+            const [appointmentData, setAppointmentData] = useState({
+                type: '',
+                doctor: '',
+                date: '',
+                time: '',
+                location: ''
+            });
+
+            const chartRef = useRef(null);
+            const chartInstance = useRef(null);
+
+            // Fonctions utilitaires
+            const generateCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
+            const getCurrentTime = () => new Date().toTimeString().slice(0, 5);
+            const getCurrentDate = () => new Date().toISOString().slice(0, 10);
+
+            const calculateAge = () => {
+                if (!user) return 0;
+                const birth = new Date(user.birthDate);
+                const today = new Date();
+                return Math.floor((today - birth) / (1000 * 60 * 60 * 24));
+            };
+
+            const formatTime = (timestamp) => {
+                return new Date(timestamp).toLocaleTimeString('fr-FR', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            };
+
+            const formatDate = (timestamp) => {
+                return new Date(timestamp).toLocaleDateString('fr-FR', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long'
+                });
+            };
+
+            const formatDateTime = (timestamp) => {
+                const date = new Date(timestamp);
+                const today = new Date();
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+
+                if (date.toDateString() === today.toDateString()) {
+                    return formatTime(timestamp);
+                } else if (date.toDateString() === yesterday.toDateString()) {
+                    return `Hier ${formatTime(timestamp)}`;
+                } else {
+                    return `${date.getDate()}/${date.getMonth() + 1} ${formatTime(timestamp)}`;
+                }
+            };
+
+            const getDayStart = (date) => {
+                const dayStart = new Date(date);
+                dayStart.setHours(7, 0, 0, 0);
+                if (date.getHours() < 7) {
+                    dayStart.setDate(dayStart.getDate() - 1);
+                }
+                return dayStart;
+            };
+
+            const getDayEnd = (date) => {
+                const dayEnd = new Date(date);
+                dayEnd.setHours(6, 30, 0, 0);
+                dayEnd.setDate(dayEnd.getDate() + 1);
+                if (date.getHours() >= 7) {
+                    dayEnd.setDate(dayEnd.getDate() + 1);
+                }
+                return dayEnd;
+            };
+
+            // Fonction pour les couleurs selon le sexe
+            const getThemeColors = () => {
+                return user?.gender === 'girl' ? {
+                    primary: 'from-pink-500 to-pink-600',
+                    primaryBg: 'bg-pink-500',
+                    primaryText: 'text-pink-600',
+                    primaryBorder: 'border-pink-200',
+                    primaryHover: 'hover:bg-pink-50',
+                    primaryLight: 'bg-pink-100',
+                    primaryDark: 'text-pink-800'
+                } : {
+                    primary: 'from-blue-500 to-blue-600',
+                    primaryBg: 'bg-blue-500',
+                    primaryText: 'text-blue-600',
+                    primaryBorder: 'border-blue-200',
+                    primaryHover: 'hover:bg-blue-50',
+                    primaryLight: 'bg-blue-100',
+                    primaryDark: 'text-blue-800'
+                };
+            };
+
+            // Fonction pour obtenir les recommandations de diversification
+            const getDiversificationRecommendations = (ageInDays) => {
+                const ageInMonths = Math.floor(ageInDays / 30);
+
+                if (ageInMonths < 4) {
+                    return {
+                        phase: 'Pas encore',
+                        message: 'La diversification commence généralement entre 4 et 6 mois. Le lait reste l\'aliment unique et complet.',
+                        recommendation: 'Continuer l\'allaitement ou le biberon exclusivement'
+                    };
+                } else if (ageInMonths >= 4 && ageInMonths < 6) {
+                    return DIVERSIFICATION_GUIDE[4];
+                } else if (ageInMonths >= 6 && ageInMonths < 8) {
+                    return DIVERSIFICATION_GUIDE[6];
+                } else if (ageInMonths >= 8 && ageInMonths < 12) {
+                    return DIVERSIFICATION_GUIDE[8];
+                } else {
+                    return DIVERSIFICATION_GUIDE[12];
+                }
+            };
+
+            // Fonction pour obtenir le guide de motricité
+            const getMotorDevelopmentForAge = (ageInDays) => {
+                const ageInMonths = Math.floor(ageInDays / 30);
+
+                if (ageInMonths < 3) {
+                    return MOTOR_DEVELOPMENT_GUIDE[0];
+                } else if (ageInMonths >= 3 && ageInMonths < 6) {
+                    return MOTOR_DEVELOPMENT_GUIDE[3];
+                } else if (ageInMonths >= 6 && ageInMonths < 9) {
+                    return MOTOR_DEVELOPMENT_GUIDE[6];
+                } else if (ageInMonths >= 9 && ageInMonths < 12) {
+                    return MOTOR_DEVELOPMENT_GUIDE[9];
+                } else if (ageInMonths >= 12 && ageInMonths < 18) {
+                    return MOTOR_DEVELOPMENT_GUIDE[12];
+                } else {
+                    return MOTOR_DEVELOPMENT_GUIDE[18];
+                }
+            };
+            // Fonctions d'alimentation
+            const getFeedingRecommendations = (ageInDays) => {
+                if (FEEDING_GUIDE[ageInDays]) {
+                    return FEEDING_GUIDE[ageInDays];
+                }
+
+                for (const range of FEEDING_RANGES) {
+                    if (range.days.includes(ageInDays)) {
+                        return {
+                            volume: range.volume,
+                            frequency: range.frequency,
+                            total: range.total,
+                            comment: range.comment
+                        };
+                    }
+                }
+
+                if (ageInDays >= 29) {
+                    const ageInMonths = Math.floor(ageInDays / 30);
+
+                    // Chercher d'abord une correspondance exacte
+                    if (FEEDING_MONTHS[ageInMonths]) {
+                        return FEEDING_MONTHS[ageInMonths];
+                    }
+
+                    // Puis chercher la tranche la plus proche
+                    const availableMonths = Object.keys(FEEDING_MONTHS).map(m => parseInt(m)).sort((a, b) => a - b);
+                    let closestMonth = availableMonths[availableMonths.length - 1]; // Par défaut le plus élevé
+
+                    for (const month of availableMonths) {
+                        if (ageInMonths <= month) {
+                            closestMonth = month;
+                            break;
+                        }
+                    }
+
+                    return FEEDING_MONTHS[closestMonth];
+                }
+
+                return null;
+            };
+            const getDefaultAmount = (volumeRange) => {
+                const ranges = volumeRange.match(/(\d+)(?:–(\d+))?/);
+                if (!ranges) return null;
+
+                const min = parseInt(ranges[1]);
+                const max = ranges[2] ? parseInt(ranges[2]) : min;
+
+                const average = Math.round((min + max) / 2);
+                return Math.round(average / 5) * 5;
+            };
+
+            // Calcul du prochain biberon
+            const calculateNextFeeding = () => {
+                const age = calculateAge();
+                const now = new Date();
+                const dayStart = getDayStart(now);
+                const dayEnd = getDayEnd(now);
+
+                const todayFeedings = entries.filter(entry => {
+                    const entryDate = new Date(entry.timestamp);
+                    return entry.type === 'feeding' && entryDate >= dayStart && entryDate <= dayEnd;
+                });
+
+                if (todayFeedings.length === 0) {
+                    return null;
+                }
+
+                todayFeedings.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                const lastFeeding = todayFeedings[0];
+                const lastFeedingTime = new Date(lastFeeding.timestamp);
+
+                let intervalMinutes;
+                if (age <= 7) {
+                    intervalMinutes = 180; // 3h (modifié de 2h30)
+                } else if (age <= 14) {
+                    intervalMinutes = 180; // 3h
+                } else if (age <= 30) {
+                    intervalMinutes = 210; // 3h30
+                } else if (age <= 60) {
+                    intervalMinutes = 240; // 4h
+                } else if (age <= 120) {
+                    intervalMinutes = 270; // 4h30
+                } else {
+                    intervalMinutes = 300; // 5h
+                }
+
+                const nextFeeding = new Date(lastFeedingTime);
+                nextFeeding.setMinutes(nextFeeding.getMinutes() + intervalMinutes);
+
+                return {
+                    nextTime: nextFeeding,
+                    lastFeeding: lastFeedingTime,
+                    intervalMinutes: intervalMinutes,
+                    intervalHours: intervalMinutes / 60,
+                    age: age
+                };
+            };
+
+            // Calculs statistiques
+            const getFilteredEntries = (period) => {
+                const now = new Date();
+                let startDate, endDate;
+
+                switch (period) {
+                    case 'daily':
+                        startDate = getDayStart(now);
+                        endDate = getDayEnd(now);
+                        break;
+                    case 'weekly':
+                        startDate = new Date(now);
+                        startDate.setDate(startDate.getDate() - 7);
+                        endDate = new Date(now);
+                        break;
+                    case 'monthly':
+                        startDate = new Date(now);
+                        startDate.setDate(startDate.getDate() - 30);
+                        endDate = new Date(now);
+                        break;
+                    default:
+                        return [];
+                }
+
+                return entries.filter(entry => {
+                    const entryDate = new Date(entry.timestamp);
+                    return entryDate >= startDate && entryDate <= endDate;
+                });
+            };
+
+            const getStats = (period) => {
+                const filteredEntries = getFilteredEntries(period);
+                const feedings = filteredEntries.filter(entry => entry.type === 'feeding');
+                const totalMilk = feedings.reduce((sum, entry) => sum + parseInt(entry.amount || 0), 0);
+                const totalPees = filteredEntries.filter(entry => entry.hasPee).length;
+                const totalPoops = filteredEntries.filter(entry => entry.hasPoop).length;
+
+                return { totalMilk, totalPees, totalPoops, feedingCount: feedings.length };
+            };
+
+            // Filtrage de l'historique avec pagination
+            const getFilteredHistory = () => {
+                const now = new Date();
+                let filteredEntries = [];
+
+                switch (historyFilter) {
+                    case 'today':
+                        const dayStart = getDayStart(now);
+                        const dayEnd = getDayEnd(now);
+                        filteredEntries = entries.filter(entry => {
+                            const entryDate = new Date(entry.timestamp);
+                            return entryDate >= dayStart && entryDate <= dayEnd;
+                        });
+                        break;
+                    case 'yesterday':
+                        const yesterday = new Date(now);
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        const yestStart = getDayStart(yesterday);
+                        const yestEnd = getDayEnd(yesterday);
+                        filteredEntries = entries.filter(entry => {
+                            const entryDate = new Date(entry.timestamp);
+                            return entryDate >= yestStart && entryDate <= yestEnd;
+                        });
+                        break;
+                    case 'week':
+                        const weekStart = new Date(now);
+                        weekStart.setDate(weekStart.getDate() - 7);
+                        filteredEntries = entries.filter(entry => {
+                            const entryDate = new Date(entry.timestamp);
+                            return entryDate >= weekStart;
+                        });
+                        break;
+                    default:
+                        filteredEntries = entries;
+                }
+
+                return filteredEntries;
+            };
+            // Vérification connexion au chargement
+            useEffect(() => {
+                const savedCode = localStorage.getItem('familyCode');
+                if (savedCode) {
+                    setAuthData(prev => ({ ...prev, code: savedCode }));
+                    handleLogin(savedCode);
+                }
+            }, []);
+
+            // Écoute des données Firebase
+            useEffect(() => {
+                if (!user) return;
+
+                const unsubscribers = [];
+
+                // Écoute des entrées
+                const entriesUnsubscribe = db.collection('entries')
+                    .orderBy('timestamp', 'desc')
+                    .onSnapshot((snapshot) => {
+                        const entriesData = [];
+                        snapshot.forEach((doc) => {
+                            entriesData.push({ id: doc.id, ...doc.data() });
+                        });
+                        setEntries(entriesData);
+                        localStorage.setItem('babyTrackerEntries', JSON.stringify(entriesData));
+                    });
+                unsubscribers.push(entriesUnsubscribe);
+
+                // Écoute des médicaments
+                const medicationsUnsubscribe = db.collection('medications')
+                    .orderBy('timestamp', 'desc')
+                    .onSnapshot((snapshot) => {
+                        const medicationsData = [];
+                        snapshot.forEach((doc) => {
+                            medicationsData.push({ id: doc.id, ...doc.data() });
+                        });
+                        setMedications(medicationsData);
+                    });
+                unsubscribers.push(medicationsUnsubscribe);
+
+                // Écoute des rendez-vous
+                const appointmentsUnsubscribe = db.collection('appointments')
+                    .orderBy('timestamp', 'desc')
+                    .onSnapshot((snapshot) => {
+                        const appointmentsData = [];
+                        snapshot.forEach((doc) => {
+                            appointmentsData.push({ id: doc.id, ...doc.data() });
+                        });
+                        setAppointments(appointmentsData);
+                    });
+                unsubscribers.push(appointmentsUnsubscribe);
+
+                // Écoute des stocks
+                const stocksUnsubscribe = db.collection('stocks')
+                    .onSnapshot((snapshot) => {
+                        const stocksData = {};
+                        snapshot.forEach((doc) => {
+                            const data = doc.data();
+                            stocksData[data.type] = data;
+                        });
+                        setStocks(stocksData);
+                    });
+                unsubscribers.push(stocksUnsubscribe);
+
+                return () => {
+                    unsubscribers.forEach(unsubscribe => unsubscribe());
+                };
+            }, [user]);
+
+            // Mise à jour du graphique
+            useEffect(() => {
+                if (currentView === 'daily' && periodView === 'daily' && chartRef.current && entries.length > 0) {
+                    updateDailyChart();
+                }
+            }, [entries, currentView, periodView]);
+
+            // Authentification
+            const handleCreateAccount = async () => {
+                const { babyName, birthDate, birthTime, birthWeight, birthHeight, parents, gender } = authData;
+
+                if (!babyName || !birthDate) {
+                    alert('Nom du bébé et date de naissance obligatoires');
+                    return;
+                }
+
+                const familyCode = generateCode();
+                const familyData = {
+                    code: familyCode,
+                    babyName,
+                    birthDate,
+                    birthTime: birthTime || '06:00',
+                    birthWeight: parseFloat(birthWeight) || 3.290,
+                    birthHeight: parseInt(birthHeight) || 48,
+                    parents: parents || 'Papa & Maman',
+                    gender: gender,
+                    createdAt: new Date().toISOString()
+                };
+
+                try {
+                    await db.collection('families').doc(familyCode).set(familyData);
+                    alert(`Famille créée avec succès!\n\nCode famille: ${familyCode}\n\nNotez bien ce code!`);
+
+                    setUser(familyData);
+                    localStorage.setItem('familyCode', familyCode);
+                    setShowAuth(false);
+                } catch (error) {
+                    console.error('Erreur création:', error);
+                    alert('Erreur lors de la création du compte');
+                }
+            };
+
+            const handleLogin = async (code = authData.code) => {
+                if (!code || code.length !== 6) {
+                    alert('Code famille invalide (6 caractères requis)');
+                    return;
+                }
+
+                try {
+                    const doc = await db.collection('families').doc(code.toUpperCase()).get();
+
+                    if (doc.exists) {
+                        const userData = doc.data();
+                        setUser(userData);
+                        localStorage.setItem('familyCode', code.toUpperCase());
+                        setShowAuth(false);
+                    } else {
+                        alert('Code famille introuvable');
+                    }
+                } catch (error) {
+                    console.error('Erreur connexion:', error);
+                    alert('Erreur de connexion');
+                }
+            };
+
+            const logout = () => {
+                setUser(null);
+                localStorage.removeItem('familyCode');
+                setShowAuth(true);
+                setAuthMode('login');
+            };
+            // Gestion des entrées
+            const openForm = (type) => {
+                setFormType(type);
+                setEditingId(null);
+                setFormData({
+                    time: getCurrentTime(),
+                    date: getCurrentDate(),
+                    amount: '',
+                    hasPee: false,
+                    hasPoop: false,
+                    poopQuantity: '',
+                    poopConsistency: '',
+                    poopColor: ''
+                });
+
+                // Suggestion automatique pour biberon
+                if (type === 'feeding') {
+                    const age = calculateAge();
+                    const recommendations = getFeedingRecommendations(age);
+                    if (recommendations) {
+                        const defaultAmount = getDefaultAmount(recommendations.volume);
+                        if (defaultAmount) {
+                            setFormData(prev => ({ ...prev, amount: defaultAmount.toString() }));
+                        }
+                    }
+                }
+
+                setShowForm(true);
+            };
+
+            const editEntry = (entryId) => {
+                const entry = entries.find(e => e.id === entryId);
+                if (!entry) return;
+
+                setEditingId(entryId);
+                setFormType(entry.type);
+
+                const entryDate = new Date(entry.timestamp);
+                setFormData({
+                    time: entryDate.toTimeString().slice(0, 5),
+                    date: entryDate.toISOString().slice(0, 10),
+                    amount: entry.amount || '',
+                    hasPee: entry.hasPee || false,
+                    hasPoop: entry.hasPoop || false,
+                    poopQuantity: entry.poopQuantity || '',
+                    poopConsistency: entry.poopConsistency || '',
+                    poopColor: entry.poopColor || ''
+                });
+
+                setShowForm(true);
+            };
+
+            const closeForm = () => {
+                setShowForm(false);
+                setFormType('');
+                setEditingId(null);
+            };
+
+            const saveEntry = async () => {
+                const { time, date, amount, hasPee, hasPoop, poopQuantity, poopConsistency, poopColor } = formData;
+
+                if (!time || !date) {
+                    alert('Heure et date obligatoires');
+                    return;
+                }
+
+                if (formType === 'feeding' && !amount) {
+                    alert('Quantité obligatoire pour le biberon');
+                    return;
+                }
+
+                if (formType === 'diaper' && !hasPee && !hasPoop) {
+                    alert('Indiquez au moins pipi ou caca');
+                    return;
+                }
+
+                const entry = {
+                    type: formType,
+                    timestamp: new Date(`${date}T${time}:00`).toISOString(),
+                    hasPee,
+                    hasPoop,
+                    poopQuantity,
+                    poopConsistency,
+                    poopColor
+                };
+
+                if (formType === 'feeding') {
+                    entry.amount = parseInt(amount);
+                }
+
+                try {
+                    if (editingId) {
+                        await db.collection('entries').doc(editingId).update(entry);
+                    } else {
+                        await db.collection('entries').add(entry);
+                    }
+                    closeForm();
+                } catch (error) {
+                    console.error('Erreur sauvegarde:', error);
+                    alert('Erreur lors de la sauvegarde');
+                }
+            };
+
+            const deleteEntry = async (entryId) => {
+                if (!confirm('Supprimer cette entrée ?')) return;
+
+                try {
+                    await db.collection('entries').doc(entryId).delete();
+                } catch (error) {
+                    console.error('Erreur suppression:', error);
+                }
+            };
+
+            // Gestion des médicaments
+            const saveMedication = async () => {
+                const { name, dosage, date, time, interval } = medicationData;
+
+                if (!name || !dosage || !date || !time) {
+                    alert('Veuillez remplir tous les champs obligatoires');
+                    return;
+                }
+
+                const medication = {
+                    name,
+                    dosage,
+                    timestamp: new Date(`${date}T${time}:00`).toISOString(),
+                    interval: interval ? parseInt(interval) : null,
+                    lastGiven: new Date(`${date}T${time}:00`).toISOString()
+                };
+
+                try {
+                    await db.collection('medications').add(medication);
+                    setMedicationData({ name: '', dosage: '', date: '', time: '', interval: '' });
+                    setCurrentView('medical');
+                } catch (error) {
+                    console.error('Erreur sauvegarde médicament:', error);
+                    alert('Erreur lors de la sauvegarde du médicament');
+                }
+            };
+
+            const giveMedication = async (medicationId) => {
+                const medication = medications.find(m => m.id === medicationId);
+                if (!medication) return;
+
+                const newLastGiven = new Date().toISOString();
+
+                try {
+                    await db.collection('medications').doc(medicationId).update({
+                        lastGiven: newLastGiven
+                    });
+                } catch (error) {
+                    console.error('Erreur mise à jour médicament:', error);
+                    alert('Erreur lors de la mise à jour');
+                }
+            };
+
+            const deleteMedication = async (medicationId) => {
+                if (!confirm('Supprimer ce médicament ?')) return;
+
+                try {
+                    await db.collection('medications').doc(medicationId).delete();
+                } catch (error) {
+                    console.error('Erreur suppression médicament:', error);
+                }
+            };
+
+            // Gestion des rendez-vous
+            const saveAppointment = async () => {
+                const { type, doctor, date, time, location } = appointmentData;
+
+                if (!type || !date || !time) {
+                    alert('Veuillez remplir tous les champs obligatoires');
+                    return;
+                }
+
+                const appointment = {
+                    type,
+                    doctor,
+                    location,
+                    timestamp: new Date(`${date}T${time}:00`).toISOString()
+                };
+
+                try {
+                    await db.collection('appointments').add(appointment);
+                    setAppointmentData({ type: '', doctor: '', date: '', time: '', location: '' });
+                    setCurrentView('medical');
+                } catch (error) {
+                    console.error('Erreur sauvegarde RDV:', error);
+                    alert('Erreur lors de la sauvegarde du rendez-vous');
+                }
+            };
+
+            const deleteAppointment = async (appointmentId) => {
+                if (!confirm('Supprimer ce rendez-vous ?')) return;
+
+                try {
+                    await db.collection('appointments').doc(appointmentId).delete();
+                } catch (error) {
+                    console.error('Erreur suppression RDV:', error);
+                }
+            };
+            // Gestion des stocks
+            const setMilkPowderDate = async () => {
+                const date = prompt('Date d\'ouverture du lait en poudre (JJ/MM/AAAA):');
+                if (!date) return;
+
+                try {
+                    // Supprimer l'ancien s'il existe
+                    const existingDocs = await db.collection('stocks').where('type', '==', 'milk-powder').get();
+                    existingDocs.forEach(doc => doc.ref.delete());
+
+                    await db.collection('stocks').add({
+                        type: 'milk-powder',
+                        date: date,
+                        timestamp: new Date().toISOString()
+                    });
+                } catch (error) {
+                    console.error('Erreur sauvegarde date lait:', error);
+                    alert('Erreur lors de la sauvegarde');
+                }
+            };
+
+            const setWaterBottleDateTime = async () => {
+                const datetime = prompt('Date et heure d\'ouverture de la bouteille d\'eau (JJ/MM/AAAA HH:MM):');
+                if (!datetime) return;
+
+                try {
+                    // Supprimer l'ancien s'il existe
+                    const existingDocs = await db.collection('stocks').where('type', '==', 'water-bottle').get();
+                    existingDocs.forEach(doc => doc.ref.delete());
+
+                    await db.collection('stocks').add({
+                        type: 'water-bottle',
+                        datetime: datetime,
+                        timestamp: new Date().toISOString()
+                    });
+                } catch (error) {
+                    console.error('Erreur sauvegarde datetime eau:', error);
+                    alert('Erreur lors de la sauvegarde');
+                }
+            };
+
+            // Graphique quotidien
+            const updateDailyChart = () => {
+                if (!chartRef.current) return;
+
+                const ctx = chartRef.current.getContext('2d');
+
+                if (chartInstance.current) {
+                    chartInstance.current.destroy();
+                }
+
+                const now = new Date();
+                const dayStart = getDayStart(now);
+                const dayEnd = getDayEnd(now);
+
+                const todayFeedings = entries.filter(entry => {
+                    const entryDate = new Date(entry.timestamp);
+                    return entry.type === 'feeding' && entryDate >= dayStart && entryDate <= dayEnd;
+                });
+
+                const hourLabels = [];
+                const data = [];
+
+                for (let h = 7; h < 31; h++) {
+                    const displayHour = h > 24 ? h - 24 : h;
+                    const hourStr = h === 30 ? '6:30' : `${displayHour}h`;
+                    hourLabels.push(hourStr);
+
+                    let cumulativeMilk = 0;
+                    const currentTime = new Date(dayStart);
+                    currentTime.setHours(h > 24 ? h - 24 : h, h === 30 ? 30 : 0);
+
+                    todayFeedings.forEach(feeding => {
+                        const feedingTime = new Date(feeding.timestamp);
+                        if (feedingTime <= currentTime) {
+                            cumulativeMilk += parseInt(feeding.amount || 0);
+                        }
+                    });
+
+                    data.push(cumulativeMilk);
+                }
+
+                chartInstance.current = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: hourLabels,
+                        datasets: [{
+                            label: 'Lait (ml)',
+                            data: data,
+                            borderColor: user?.gender === 'girl' ? '#ec4899' : '#3B82F6',
+                            backgroundColor: user?.gender === 'girl' ? 'rgba(236, 72, 153, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: { fontSize: 10 }
+                            },
+                            x: {
+                                ticks: { fontSize: 10 }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false }
+                        }
+                    }
+                });
+            };
+
+            // Fonctions d'information sur les selles
+            const getPoopInfo = (quantity, consistency, color) => {
+                const quantities = {
+                    'peu': { label: 'Un peu', emoji: '🤏' },
+                    'moyen': { label: 'Moyen', emoji: '👌' },
+                    'beaucoup': { label: 'Beaucoup', emoji: '🙌' }
+                };
+
+                const consistencies = {
+                    'liquide': { label: 'Liquide', emoji: '💧' },
+                    'molle': { label: 'Molle', emoji: '🟡' },
+                    'normale': { label: 'Normale', emoji: '🟤' },
+                    'dure': { label: 'Dure', emoji: '🔴' }
+                };
+
+                const colors = {
+                    'noir': { label: 'Noir', emoji: '⚫', bgColor: 'bg-gray-800', textColor: 'text-white' },
+                    'marron': { label: 'Marron', emoji: '🟤', bgColor: 'bg-amber-700', textColor: 'text-white' },
+                    'vert': { label: 'Vert', emoji: '🟢', bgColor: 'bg-green-600', textColor: 'text-white' },
+                    'jaune': { label: 'Jaune', emoji: '🟡', bgColor: 'bg-yellow-400', textColor: 'text-gray-800' }
+                };
+
+                return {
+                    quantity: quantities[quantity] || { label: '', emoji: '' },
+                    consistency: consistencies[consistency] || { label: '', emoji: '' },
+                    color: colors[color] || { label: '', emoji: '', bgColor: 'bg-orange-100', textColor: 'text-orange-800' }
+                };
+            };
+            // Conseils par âge complets
+            const getTipsForAge = (age) => {
+                if (age <= 7) {
+                    return {
+                        title: `🍼 Premiers jours (${age} jours)`,
+                        sections: [
+                            {
+                                title: '💝 Contact et lien affectif',
+                                color: 'bg-blue-50',
+                                textColor: 'text-blue-800',
+                                tips: [
+                                    'Contact peau à peau : régule la température et favorise la mise au sein',
+                                    'Répondre aux sourires spontanés pour créer des associations positives',
+                                    'Parler doucement, chanter des berceuses, maintenir le contact visuel',
+                                    'Le toucher est le premier sens développé - chaque caresse compte'
+                                ]
+                            },
+                            {
+                                title: '🍼 Alimentation à la demande',
+                                color: 'bg-green-50',
+                                textColor: 'text-green-800',
+                                tips: [
+                                    '6-8 tétées par 24h - suivre les signaux de faim du bébé',
+                                    'Signes précoces : lèche les lèvres, agite les mains, tourne la tête',
+                                    'Consoler d\'abord si bébé pleure, puis proposer le sein/biberon',
+                                    'Contact peau à peau avant la tétée pour éveiller les réflexes'
+                                ]
+                            },
+                            {
+                                title: '🌙 Rythmes et sommeil',
+                                color: 'bg-yellow-50',
+                                textColor: 'text-yellow-800',
+                                tips: [
+                                    'Pas de routine fixe encore - c\'est normal',
+                                    'Jour : lumière naturelle, atmosphère animée',
+                                    'Nuit : obscurité, voix basse, changes rapides sans jeu',
+                                    'Coucher sur le dos, matelas ferme, température 18-20°C'
+                                ]
+                            },
+                            {
+                                title: '😢 Comprendre les pleurs',
+                                color: 'bg-purple-50',
+                                textColor: 'text-purple-800',
+                                tips: [
+                                    'Les pleurs = communication d\'un besoin, pas un caprice',
+                                    'Consoler ne "gâte" pas - construit la confiance',
+                                    'Acceptable de déposer bébé en sécurité et prendre une pause'
+                                ]
+                            }
+                        ]
+                    };
+                } else if (age >= 8 && age <= 30) {
+                    return {
+                        title: `👶 Premier mois (${age} jours)`,
+                        sections: [
+                            {
+                                title: '🏃 Développement moteur',
+                                color: 'bg-blue-50',
+                                textColor: 'text-blue-800',
+                                tips: [
+                                    '"Tummy time" : renforce le cou et les bras',
+                                    'Exploration des mains et pieds',
+                                    'Meilleure maîtrise de la tête',
+                                    'Mouvements plus coordonnés'
+                                ]
+                            },
+                            {
+                                title: '😊 Éveil social',
+                                color: 'bg-green-50',
+                                textColor: 'text-green-800',
+                                tips: [
+                                    'Premiers vrais sourires en réponse',
+                                    'Suit les objets du regard',
+                                    'Début du babillage pour exprimer la joie',
+                                    'Distingue ses parents des autres'
+                                ]
+                            },
+                            {
+                                title: '🎮 Jeux et activités',
+                                color: 'bg-orange-50',
+                                textColor: 'text-orange-800',
+                                tips: [
+                                    'Jeux de "coucou" - apprend la permanence de l\'objet',
+                                    'Cartes à contraste élevé',
+                                    'Mobiles colorés, miroirs incassables',
+                                    'Le parent est le meilleur "jouet"'
+                                ]
+                            },
+                            {
+                                title: '😣 Gestion des coliques',
+                                color: 'bg-red-50',
+                                textColor: 'text-red-800',
+                                tips: [
+                                    'Massages doux du ventre (sens horaire)',
+                                    'Position "paresseux" sur l\'avant-bras',
+                                    'Portage en écharpe, bercements, bruits blancs',
+                                    'Chaleur douce sur le ventre'
+                                ]
+                            }
+                        ]
+                    };
+                } else if (age >= 31 && age <= 60) {
+                    return {
+                        title: `👶 Deuxième mois (${age} jours)`,
+                        sections: [
+                            {
+                                title: '💪 Grandes étapes motrices',
+                                color: 'bg-blue-50',
+                                textColor: 'text-blue-800',
+                                tips: [
+                                    'Se soulève sur les avant-bras en position ventrale',
+                                    'Muscles du cou plus forts',
+                                    'Exploration active mains/pieds',
+                                    'Coordination œil-main s\'améliore'
+                                ]
+                            },
+                            {
+                                title: '🗣️ Communication avancée',
+                                color: 'bg-green-50',
+                                textColor: 'text-green-800',
+                                tips: [
+                                    'Babillage structuré : "ba-ba", "ma-ma"',
+                                    'Distingue les émotions par le ton',
+                                    'Peut reconnaître son prénom',
+                                    'Interactions sociales plus riches'
+                                ]
+                            },
+                            {
+                                title: '🌙 Régression du sommeil (possible)',
+                                color: 'bg-purple-50',
+                                textColor: 'text-purple-800',
+                                tips: [
+                                    'Normal entre 2-4 mois : signe de développement sain',
+                                    'Maturation vers cycles de sommeil adulte',
+                                    'Encourager l\'auto-apaisement',
+                                    'Rituel de coucher régulier et apaisant'
+                                ]
+                            },
+                            {
+                                title: '🎯 Stimulation appropriée',
+                                color: 'bg-yellow-50',
+                                textColor: 'text-yellow-800',
+                                tips: [
+                                    'Limiter transats/sièges-auto',
+                                    'Tapis de jeu pour éveil supervisé',
+                                    'Objets colorés, textures variées',
+                                    'Lecture à voix haute'
+                                ]
+                            }
+                        ]
+                    };
+                } else if (age >= 61 && age <= 120) {
+                    return {
+                        title: `🌟 3-4 mois (${age} jours)`,
+                        sections: [
+                            {
+                                title: '🤸 Mobilité accrue',
+                                color: 'bg-blue-50',
+                                textColor: 'text-blue-800',
+                                tips: [
+                                    'Début des retournements dos-ventre',
+                                    'Prend appui sur les jambes',
+                                    'Coordination œil-main développée',
+                                    'Attrape volontairement les objets'
+                                ]
+                            },
+                            {
+                                title: '👁️ Vision et perception',
+                                color: 'bg-green-50',
+                                textColor: 'text-green-800',
+                                tips: [
+                                    'Meilleure distinction des couleurs',
+                                    'Suit les objets en mouvement',
+                                    'Exploration bouche = découverte sensorielle',
+                                    'Vision s\'affine considérablement'
+                                ]
+                            },
+                            {
+                                title: '🍼 Préparation diversification',
+                                color: 'bg-orange-50',
+                                textColor: 'text-orange-800',
+                                tips: [
+                                    'Lait reste la source principale jusqu\'à 1 an',
+                                    'Possible introduction légumes/fruits vers 4-6 mois',
+                                    'Observer les signaux de prêtesse',
+                                    'Un aliment à la fois pour tester les réactions'
+                                ]
+                            },
+                            {
+                                title: '😴 Régression sommeil 4 mois',
+                                color: 'bg-red-50',
+                                textColor: 'text-red-800',
+                                tips: [
+                                    'Dure 2-6 semaines - patience nécessaire',
+                                    'Résultat de la maturation neurologique',
+                                    'Encourager l\'auto-apaisement',
+                                    'Demander de l\'aide si besoin'
+                                ]
+                            }
+                        ]
+                    };
+                } else if (age >= 121 && age <= 180) {
+                    return {
+                        title: `🚀 4-6 mois (${age} jours)`,
+                        sections: [
+                            {
+                                title: '🎯 Grand bond moteur',
+                                color: 'bg-blue-50',
+                                textColor: 'text-blue-800',
+                                tips: [
+                                    'Se retourne dans les 2 sens',
+                                    'S\'assoit avec soutien puis seul',
+                                    'Force du haut du corps développée',
+                                    'Exploration active de l\'environnement'
+                                ]
+                            },
+                            {
+                                title: '🍎 Diversification alimentaire',
+                                color: 'bg-green-50',
+                                textColor: 'text-green-800',
+                                tips: [
+                                    'Légumes/fruits : purées lisses, un à la fois',
+                                    'Céréales infantiles dès 4 mois',
+                                    'Protéines : 10g viande/poisson ou 1/4 œuf',
+                                    'Ne jamais forcer - exploration sensorielle'
+                                ]
+                            },
+                            {
+                                title: '🗣️ Communication complexe',
+                                color: 'bg-purple-50',
+                                textColor: 'text-purple-800',
+                                tips: [
+                                    'Chaînes de sons : "ba-ba", "dee-dee"',
+                                    'Répond à la négation "non"',
+                                    'Reconnaît son prénom',
+                                    'Exprime la joie par la voix'
+                                ]
+                            },
+                            {
+                                title: '🎮 Jeux adaptés',
+                                color: 'bg-yellow-50',
+                                textColor: 'text-yellow-800',
+                                tips: [
+                                    'Jouets à saisir et manipuler',
+                                    'Miroirs incassables',
+                                    'Jeux de mains et comptines',
+                                    'Objets de textures variées'
+                                ]
+                            }
+                        ]
+                    };
+                } else {
+                    return {
+                        title: `🌟 Croissance avancée (${age} jours)`,
+                        sections: [
+                            {
+                                title: '🚀 Développement avancé',
+                                color: 'bg-green-50',
+                                textColor: 'text-green-800',
+                                tips: [
+                                    'Exploration active et curiosité intense',
+                                    'Interaction sociale complexe',
+                                    'Personnalité qui s\'affirme',
+                                    'Préparation aux prochaines étapes'
+                                ]
+                            },
+                            {
+                                title: '🍼 Alimentation diversifiée',
+                                color: 'bg-blue-50',
+                                textColor: 'text-blue-800',
+                                tips: [
+                                    'Lait reste principal jusqu\'à 1 an',
+                                    'Diversification en cours',
+                                    'Texture adaptée à l\'âge',
+                                    'Consulter le pédiatre pour conseils'
+                                ]
+                            },
+                            {
+                                title: '👨‍⚕️ Suivi médical',
+                                color: 'bg-purple-50',
+                                textColor: 'text-purple-800',
+                                tips: [
+                                    'Consultations régulières importantes',
+                                    'Stimulation sensorielle et motrice',
+                                    'Adaptation selon la croissance',
+                                    'Chaque enfant évolue à son rythme'
+                                ]
+                            }
+                        ]
+                    };
+                }
+            };
+
+            // Calculer les recommandations alimentaires
+            const age = calculateAge();
+            const recommendations = getFeedingRecommendations(age);
+            const nextFeedingInfo = calculateNextFeeding();
+            const themeColors = getThemeColors();
+            // Rendu conditionnel - Écran d'authentification
+            if (showAuth) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
+                            <h1 className="text-2xl font-bold text-center mb-6">BabyTrack</h1>
+
+                            {authMode === 'login' ? (
+                                <div className="space-y-4">
+                                    <h2 className="text-lg font-semibold">Se connecter</h2>
+                                    <input
+                                        type="text"
+                                        placeholder="Code famille (6 caractères)"
+                                        className="w-full border rounded-xl px-4 py-3 text-center uppercase"
+                                        maxLength="6"
+                                        value={authData.code}
+                                        onChange={(e) => setAuthData(prev => ({ ...prev, code: e.target.value }))}
+                                    />
+                                    <button
+                                        onClick={() => handleLogin()}
+                                        className="w-full bg-blue-500 text-white py-3 rounded-xl font-medium"
+                                    >
+                                        Se connecter
+                                    </button>
+                                    <button
+                                        onClick={() => setAuthMode('create')}
+                                        className="w-full bg-gray-200 text-gray-700 py-3 rounded-xl font-medium"
+                                    >
+                                        Créer un compte famille
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <h2 className="text-lg font-semibold">Nouvelle famille</h2>
+                                    <input
+                                        type="text"
+                                        placeholder="Nom du bébé"
+                                        className="w-full border rounded-xl px-4 py-3"
+                                        value={authData.babyName}
+                                        onChange={(e) => setAuthData(prev => ({ ...prev, babyName: e.target.value }))}
+                                    />
+                                    <input
+                                        type="date"
+                                        className="w-full border rounded-xl px-4 py-3"
+                                        value={authData.birthDate}
+                                        onChange={(e) => setAuthData(prev => ({ ...prev, birthDate: e.target.value }))}
+                                    />
+                                    <input
+                                        type="time"
+                                        className="w-full border rounded-xl px-4 py-3"
+                                        value={authData.birthTime}
+                                        onChange={(e) => setAuthData(prev => ({ ...prev, birthTime: e.target.value }))}
+                                    />
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <input
+                                            type="number"
+                                            placeholder="Poids (kg)"
+                                            step="0.001"
+                                            className="w-full border rounded-xl px-4 py-3"
+                                            value={authData.birthWeight}
+                                            onChange={(e) => setAuthData(prev => ({ ...prev, birthWeight: e.target.value }))}
+                                        />
+                                        <input
+                                            type="number"
+                                            placeholder="Taille (cm)"
+                                            className="w-full border rounded-xl px-4 py-3"
+                                            value={authData.birthHeight}
+                                            onChange={(e) => setAuthData(prev => ({ ...prev, birthHeight: e.target.value }))}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Sexe</label>
+                                        <select
+                                            className="w-full border rounded-xl px-4 py-3"
+                                            value={authData.gender}
+                                            onChange={(e) => setAuthData(prev => ({ ...prev, gender: e.target.value }))}
+                                        >
+                                            <option value="boy">Garçon</option>
+                                            <option value="girl">Fille</option>
+                                        </select>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder="Noms des parents"
+                                        className="w-full border rounded-xl px-4 py-3"
+                                        value={authData.parents}
+                                        onChange={(e) => setAuthData(prev => ({ ...prev, parents: e.target.value }))}
+                                    />
+                                    <button
+                                        onClick={handleCreateAccount}
+                                        className="w-full bg-green-500 text-white py-3 rounded-xl font-medium"
+                                    >
+                                        Créer la famille
+                                    </button>
+                                    <button
+                                        onClick={() => setAuthMode('login')}
+                                        className="w-full bg-gray-200 text-gray-700 py-3 rounded-xl font-medium"
+                                    >
+                                        Retour
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            // Navigation tabs
+            const TabButton = ({ id, label, icon, active, onClick }) => (
+                <button
+                    onClick={onClick}
+                    className={`flex flex-col items-center justify-center p-2 rounded-lg text-xs font-medium transition-all ${active
+                        ? `${themeColors.primaryBg} text-white shadow-md`
+                        : 'text-gray-600 hover:text-gray-800'
+                        }`}
+                >
+                    <i className={`${icon} text-lg mb-1`}></i>
+                    <span>{label}</span>
+                </button>
+            );
+            // Rendu principal
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+                    <div className="max-w-md mx-auto p-4">
+                        {/* Header */}
+                        {/* Header avec logo */}
+                        <div className="text-center mb-6 pt-4">
+                            <div className="flex items-center justify-between">
+                                <button onClick={logout} className="text-gray-500 hover:text-gray-700">
+                                    <i className="fas fa-sign-out-alt"></i>
+                                </button>
+                                <div className="flex flex-col items-center">
+
+
+                                    <div className="flex items-center mb-1">
+
+                                        <h1 className="text-2xl font-bold text-gray-800">{user?.babyName}</h1>
+                                    </div>
+                                    <div className="bg-white/80 rounded-full px-4 py-1 shadow-sm border border-white/50">
+                                        <p className="text-sm font-medium text-gray-700">
+                                            Jour {age} • {user?.birthWeight?.toFixed(3)}kg • {user?.birthHeight}cm
+                                        </p>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        Né{user?.gender === 'girl' ? 'e' : ''} le {new Date(user?.birthDate + 'T' + user?.birthTime).toLocaleDateString('fr-FR')} à {user?.birthTime}
+                                    </p>
+                                </div>
+                                <div className="w-8"></div>
+                            </div>
+                        </div>
+
+                        {/* Prochain biberon - déplacé en haut */}
+                        {currentView === 'daily' && nextFeedingInfo && periodView === 'daily' && (
+                            <div className="mb-6">
+                                {(() => {
+                                    const now = new Date();
+                                    const timeDiff = nextFeedingInfo.nextTime - now;
+                                    const minutesRemaining = Math.ceil(timeDiff / (1000 * 60));
+
+                                    let statusClass, statusIcon, statusText;
+
+                                    if (minutesRemaining <= 0) {
+                                        statusClass = 'bg-green-50 border-green-200';
+                                        statusIcon = '✅';
+                                        statusText = 'C\'est l\'heure !';
+                                    } else if (minutesRemaining <= 30) {
+                                        statusClass = 'bg-orange-50 border-orange-200';
+                                        statusIcon = '⏰';
+                                        statusText = `Dans ${minutesRemaining} min`;
+                                    } else {
+                                        const hoursRemaining = Math.floor(minutesRemaining / 60);
+                                        const minsRemaining = minutesRemaining % 60;
+
+                                        statusClass = `${themeColors.primaryLight} ${themeColors.primaryBorder}`;
+                                        statusIcon = '🍼';
+
+                                        if (hoursRemaining > 0 && minsRemaining > 0) {
+                                            statusText = `Dans ${hoursRemaining}h${String(minsRemaining).padStart(2, '0')}`;
+                                        } else if (hoursRemaining > 0) {
+                                            statusText = `Dans ${hoursRemaining}h`;
+                                        } else {
+                                            statusText = `Dans ${minsRemaining} min`;
+                                        }
+                                    }
+
+                                    const intervalHours = Math.floor(nextFeedingInfo.intervalMinutes / 60);
+                                    const intervalMins = nextFeedingInfo.intervalMinutes % 60;
+
+                                    let intervalDisplay;
+                                    if (intervalMins === 0) {
+                                        intervalDisplay = `${intervalHours}h`;
+                                    } else {
+                                        intervalDisplay = `${intervalHours}h${String(intervalMins).padStart(2, '0')}`;
+                                    }
+
+                                    return (
+                                        <div className={`${statusClass} border rounded-lg p-3 pulse-gentle`}>
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-lg">{statusIcon}</span>
+                                                    <div>
+                                                        <p className="text-sm font-medium">Prochain biberon à : {formatTime(nextFeedingInfo.nextTime.toISOString())}</p>
+                                                        <p className="text-xs text-gray-600">{statusText} (intervalle {intervalDisplay})</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right text-xs text-gray-500">
+                                                    <p>Dernier : {formatTime(nextFeedingInfo.lastFeeding.toISOString())}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+                        {/* Guide alimentaire - déplacé avant les statistiques */}
+                        {recommendations && periodView === 'daily' && (
+                            <div className="bg-white/80 glass rounded-2xl p-4 shadow-sm border border-white/50 mb-6">
+                                <h3 className="text-sm font-semibold text-gray-800 mb-3">📏 Guide alimentaire - Jour {age}</h3>
+                                <div className="grid grid-cols-2 gap-2 mb-2">
+                                    <div>
+                                        <strong>📏 Volume :</strong><br />
+                                        <span className={`${themeColors.primaryDark} font-medium`}>{recommendations.volume}</span>
+                                    </div>
+                                    <div>
+                                        <strong>⏰ Fréquence :</strong><br />
+                                        <span className={`${themeColors.primaryDark} font-medium`}>{recommendations.frequency}</span>
+                                    </div>
+                                </div>
+                                {recommendations.total && (
+                                    <div className="mb-2">
+                                        <strong>📊 Total/jour :</strong>
+                                        <span className={`${themeColors.primaryDark} font-medium ml-2`}>{recommendations.total}</span>
+                                    </div>
+                                )}
+                                <div className={`text-xs ${themeColors.primaryText} italic`}>
+                                    💡 {recommendations.comment}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Navigation */}
+                        <div className="bg-white/80 glass rounded-2xl p-2 mb-6 shadow-sm border border-white/50">
+                            <div className="grid grid-cols-5 gap-1">
+                                <TabButton
+                                    id="daily"
+                                    label="Quotidien"
+                                    icon="fas fa-home"
+                                    active={currentView === 'daily'}
+                                    onClick={() => setCurrentView('daily')}
+                                />
+                                <TabButton
+                                    id="medical"
+                                    label="Médical"
+                                    icon="fas fa-stethoscope"
+                                    active={currentView === 'medical'}
+                                    onClick={() => setCurrentView('medical')}
+                                />
+                                <TabButton
+                                    id="supplies"
+                                    label="Stocks"
+                                    icon="fas fa-boxes"
+                                    active={currentView === 'supplies'}
+                                    onClick={() => setCurrentView('supplies')}
+                                />
+                                <TabButton
+                                    id="food"
+                                    label="Diversif."
+                                    icon="fas fa-utensils"
+                                    active={currentView === 'food'}
+                                    onClick={() => setCurrentView('food')}
+                                />
+                                <TabButton
+                                    id="tips"
+                                    label="Conseils"
+                                    icon="fas fa-lightbulb"
+                                    active={currentView === 'tips'}
+                                    onClick={() => setCurrentView('tips')}
+                                />
+                            </div>
+                        </div>
+                        {/* Contenu selon la vue */}
+
+                        {/* Contenu selon la vue */}
+                        {currentView === 'daily' && (
+                            <>
+                                {/* Onglets de période */}
+                                <div className="bg-white/80 glass rounded-xl p-2 mb-4 shadow-sm border border-white/50">
+                                    <div className="flex gap-1">
+                                        <button
+                                            onClick={() => setPeriodView('daily')}
+                                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${periodView === 'daily'
+                                                ? `${themeColors.primaryBg} text-white shadow-md`
+                                                : 'text-gray-600 hover:text-gray-800'
+                                                }`}
+                                        >
+                                            Aujourd'hui
+                                        </button>
+                                        <button
+                                            onClick={() => setPeriodView('weekly')}
+                                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${periodView === 'weekly'
+                                                ? `${themeColors.primaryBg} text-white shadow-md`
+                                                : 'text-gray-600 hover:text-gray-800'
+                                                }`}
+                                        >
+                                            7 jours
+                                        </button>
+                                        <button
+                                            onClick={() => setPeriodView('monthly')}
+                                            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${periodView === 'monthly'
+                                                ? `${themeColors.primaryBg} text-white shadow-md`
+                                                : 'text-gray-600 hover:text-gray-800'
+                                                }`}
+                                        >
+                                            30 jours
+                                        </button>
+                                    </div>
+                                </div>
+
+
+                                {/* Statistiques selon la période */}
+                                {(() => {
+                                    const currentStats = getStats(periodView);
+                                    return (
+                                        <div className="grid grid-cols-3 gap-3 mb-6">
+                                            <div className="bg-white/80 rounded-2xl p-4 text-center shadow-sm border border-white/50">
+                                                <i className={`fas fa-bottle-water ${themeColors.primaryText} text-xl mb-1`}></i>
+                                                <div className="text-lg font-bold text-gray-800">{currentStats.totalMilk}ml</div>
+                                                <div className="text-xs text-gray-500">
+                                                    {periodView === 'daily' ? 'Aujourd\'hui' :
+                                                        periodView === 'weekly' ? '7 jours' : '30 jours'}
+                                                </div>
+                                            </div>
+                                            <div className="bg-white/80 rounded-2xl p-4 text-center shadow-sm border border-white/50">
+                                                <div className="text-xl mb-1">💧</div>
+                                                <div className="text-lg font-bold text-gray-800">{currentStats.totalPees}</div>
+                                                <div className="text-xs text-gray-500">Pipis</div>
+                                            </div>
+                                            <div className="bg-white/80 rounded-2xl p-4 text-center shadow-sm border border-white/50">
+                                                <div className="text-xl mb-1">💩</div>
+                                                <div className="text-lg font-bold text-gray-800">{currentStats.totalPoops}</div>
+                                                <div className="text-xs text-gray-500">Cacas</div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+
+
+
+                                {/* Graphique */}
+                                {periodView === 'daily' && (
+                                    <div className="bg-white/80 glass rounded-2xl p-4 shadow-sm border border-white/50 mb-6">
+                                        <h3 className="text-sm font-semibold text-gray-800 mb-3">📈 Évolution journalière</h3>
+                                        <div className="h-32">
+                                            <canvas ref={chartRef}></canvas>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Boutons d'action */}
+                                <div className="flex gap-3 mb-6">
+                                    <button
+                                        onClick={() => openForm('feeding')}
+                                        className={`flex-1 bg-gradient-to-r ${themeColors.primary} text-white rounded-2xl p-4 flex items-center justify-center gap-2 shadow-lg`}
+                                    >
+                                        <i className="fas fa-bottle-water text-lg"></i>
+                                        <span className="font-semibold">Biberon</span>
+                                    </button>
+                                    <button
+                                        onClick={() => openForm('diaper')}
+                                        className="flex-1 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-2xl p-4 flex items-center justify-center gap-2 shadow-lg"
+                                    >
+                                        <i className="fas fa-plus text-lg"></i>
+                                        <span className="font-semibold">Couche</span>
+                                    </button>
+                                </div>
+                                {/* Historique avec pagination */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-lg font-bold text-gray-800">Historique</h3>
+                                        <select
+                                            value={historyFilter}
+                                            onChange={(e) => {
+                                                setHistoryFilter(e.target.value);
+                                                setCurrentPage(0);
+                                            }}
+                                            className="text-sm border rounded-lg px-2 py-1"
+                                        >
+                                            <option value="today">Aujourd'hui</option>
+                                            <option value="yesterday">Hier</option>
+                                            <option value="week">7 derniers jours</option>
+                                            <option value="all">Tout</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        {(() => {
+                                            const filteredEntries = getFilteredHistory();
+                                            const itemsPerPage = 10;
+                                            const startIndex = currentPage * itemsPerPage;
+                                            const endIndex = startIndex + itemsPerPage;
+                                            const currentEntries = filteredEntries.slice(startIndex, endIndex);
+                                            const totalPages = Math.ceil(filteredEntries.length / itemsPerPage);
+
+                                            return (
+                                                <>
+                                                    {currentEntries.length === 0 ? (
+                                                        <p className="text-gray-500 text-center py-8">Aucune entrée pour cette période</p>
+                                                    ) : (
+                                                        currentEntries.map((entry) => {
+                                                            let poopDisplay = '';
+                                                            if (entry.hasPoop) {
+                                                                const poopInfo = getPoopInfo(entry.poopQuantity, entry.poopConsistency, entry.poopColor);
+                                                                const parts = [];
+
+                                                                if (poopInfo.quantity.label) parts.push(`${poopInfo.quantity.emoji} ${poopInfo.quantity.label}`);
+                                                                if (poopInfo.consistency.label) parts.push(`${poopInfo.consistency.emoji} ${poopInfo.consistency.label}`);
+                                                                if (poopInfo.color.label) parts.push(`${poopInfo.color.emoji} ${poopInfo.color.label}`);
+
+                                                                const displayText = parts.length > 0 ? parts.join(' • ') : '💩 Caca';
+                                                                poopDisplay = (
+                                                                    <span className={`${poopInfo.color.bgColor || 'bg-orange-100'} ${poopInfo.color.textColor || 'text-orange-800'} px-3 py-1 rounded-full text-xs`}>
+                                                                        {displayText}
+                                                                    </span>
+                                                                );
+                                                            }
+
+                                                            return (
+                                                                <div key={entry.id} className="bg-white/80 rounded-2xl p-4 shadow-sm border border-white/50 fade-in">
+                                                                    <div className="flex items-center justify-between mb-2">
+                                                                        <div className="flex items-center gap-2">
+                                                                            {entry.type === 'feeding' ? (
+                                                                                <i className={`fas fa-bottle-water ${themeColors.primaryText} text-lg`}></i>
+                                                                            ) : (
+                                                                                <div className="text-lg">👶</div>
+                                                                            )}
+                                                                            <span className="font-semibold text-gray-800">
+                                                                                {entry.type === 'feeding' ? 'Biberon' : 'Couche'}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-sm text-gray-500">{formatDateTime(entry.timestamp)}</span>
+                                                                            <button
+                                                                                onClick={() => editEntry(entry.id)}
+                                                                                className={`${themeColors.primaryText} ${themeColors.primaryHover}`}
+                                                                            >
+                                                                                <i className="fas fa-edit text-sm"></i>
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => deleteEntry(entry.id)}
+                                                                                className="text-red-500 hover:text-red-700"
+                                                                            >
+                                                                                <i className="fas fa-trash text-sm"></i>
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 text-sm flex-wrap">
+                                                                        {entry.type === 'feeding' && entry.amount && (
+                                                                            <span className={`${themeColors.primaryLight} ${themeColors.primaryDark} px-3 py-1 rounded-full font-medium`}>
+                                                                                {entry.amount}ml
+                                                                            </span>
+                                                                        )}
+                                                                        {entry.hasPee && (
+                                                                            <span className={`${themeColors.primaryLight} ${themeColors.primaryDark} px-3 py-1 rounded-full`}>💧 Pipi</span>
+                                                                        )}
+                                                                        {entry.hasPoop && poopDisplay}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })
+                                                    )}
+
+                                                    {/* Pagination */}
+                                                    {totalPages > 1 && (
+                                                        <div className="flex items-center justify-center gap-2 mt-4">
+                                                            <button
+                                                                onClick={() => setCurrentPage(Math.max(0, currentPage - 1))}
+                                                                disabled={currentPage === 0}
+                                                                className="px-3 py-1 rounded-lg border disabled:opacity-50"
+                                                            >
+                                                                ←
+                                                            </button>
+                                                            <span className="text-sm text-gray-600">
+                                                                Page {currentPage + 1} sur {totalPages}
+                                                            </span>
+                                                            <button
+                                                                onClick={() => setCurrentPage(Math.min(totalPages - 1, currentPage + 1))}
+                                                                disabled={currentPage === totalPages - 1}
+                                                                className="px-3 py-1 rounded-lg border disabled:opacity-50"
+                                                            >
+                                                                →
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                        {/* Vue Médical */}
+                        {currentView === 'medical' && (
+                            <div className="space-y-6">
+                                <h2 className="text-xl font-bold text-gray-800">Suivi médical</h2>
+
+                                {/* Boutons actions médicales */}
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => {
+                                            setMedicationData({
+                                                name: '',
+                                                dosage: '',
+                                                date: getCurrentDate(),
+                                                time: getCurrentTime(),
+                                                interval: ''
+                                            });
+                                            setCurrentView('medication-form');
+                                        }}
+                                        className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl p-3 flex items-center justify-center gap-2"
+                                    >
+                                        <i className="fas fa-pills"></i>
+                                        <span className="font-medium">Médicament</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setAppointmentData({
+                                                type: '',
+                                                doctor: '',
+                                                date: getCurrentDate(),
+                                                time: '',
+                                                location: ''
+                                            });
+                                            setCurrentView('appointment-form');
+                                        }}
+                                        className="flex-1 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl p-3 flex items-center justify-center gap-2"
+                                    >
+                                        <i className="fas fa-calendar-plus"></i>
+                                        <span className="font-medium">Rendez-vous</span>
+                                    </button>
+                                </div>
+
+                                {/* Médicaments */}
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-800 mb-3">💊 Médicaments</h3>
+                                    <div className="space-y-3">
+                                        {medications.length === 0 ? (
+                                            <p className="text-gray-500 text-center py-6">Aucun médicament enregistré</p>
+                                        ) : (
+                                            medications.map(medication => {
+                                                const now = new Date();
+                                                const lastGiven = new Date(medication.lastGiven);
+                                                const hoursSinceLastDose = (now - lastGiven) / (1000 * 60 * 60);
+
+                                                let statusClass = 'medication-available';
+                                                let statusText = 'Peut être donné';
+                                                let statusIcon = '✅';
+
+                                                if (medication.interval) {
+                                                    if (hoursSinceLastDose < medication.interval) {
+                                                        const nextDose = new Date(lastGiven);
+                                                        nextDose.setHours(nextDose.getHours() + medication.interval);
+
+                                                        const hoursRemaining = medication.interval - hoursSinceLastDose;
+
+                                                        if (hoursRemaining <= 1) {
+                                                            statusClass = 'medication-soon pulse-gentle';
+                                                            statusText = `Prochaine prise à : ${formatTime(nextDose.toISOString())}`;
+                                                            statusIcon = '⏰';
+                                                        } else {
+                                                            statusClass = 'medication-waiting';
+                                                            statusText = `Prochaine prise à : ${formatTime(nextDose.toISOString())}`;
+                                                            statusIcon = '⏳';
+                                                        }
+                                                    }
+                                                }
+
+                                                return (
+                                                    <div key={medication.id} className={`${statusClass} rounded-xl p-3 border-2`}>
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-lg">{statusIcon}</span>
+                                                                <div>
+                                                                    <h5 className="font-semibold text-gray-800">{medication.name}</h5>
+                                                                    <p className="text-sm text-gray-600">{medication.dosage}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-xs text-gray-500">{formatDateTime(medication.lastGiven)}</p>
+                                                                <p className="text-xs font-medium">{statusText}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            {hoursSinceLastDose >= (medication.interval || 0) ? (
+                                                                <button
+                                                                    onClick={() => giveMedication(medication.id)}
+                                                                    className="flex-1 bg-green-500 text-white py-2 rounded-lg text-sm font-medium"
+                                                                >
+                                                                    Donner maintenant
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    disabled
+                                                                    className="flex-1 bg-gray-300 text-gray-500 py-2 rounded-lg text-sm font-medium"
+                                                                >
+                                                                    Pas encore
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => deleteMedication(medication.id)}
+                                                                className="px-3 bg-red-100 text-red-600 rounded-lg text-sm"
+                                                            >
+                                                                <i className="fas fa-trash"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Rendez-vous */}
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-800 mb-3">📅 Rendez-vous</h3>
+                                    <div className="space-y-3">
+                                        {appointments.length === 0 ? (
+                                            <p className="text-gray-500 text-center py-6">Aucun rendez-vous programmé</p>
+                                        ) : (
+                                            appointments.map(appointment => {
+                                                const appointmentDate = new Date(appointment.timestamp);
+                                                const now = new Date();
+                                                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                                                const appointmentDay = new Date(appointmentDate.getFullYear(), appointmentDate.getMonth(), appointmentDate.getDate());
+
+                                                let statusClass = '';
+                                                let statusIcon = '📅';
+
+                                                if (appointmentDay.getTime() === today.getTime()) {
+                                                    statusClass = 'appointment-today pulse-gentle';
+                                                    statusIcon = '🚨';
+                                                } else if (appointmentDate > now && appointmentDate < new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)) {
+                                                    statusClass = 'appointment-upcoming';
+                                                    statusIcon = '⏰';
+                                                }
+
+                                                return (
+                                                    <div key={appointment.id} className={`${statusClass} rounded-xl p-3 border-2 border-gray-200`}>
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-lg">{statusIcon}</span>
+                                                                <div>
+                                                                    <h5 className="font-semibold text-gray-800">{appointment.type}</h5>
+                                                                    <p className="text-sm text-gray-600">{appointment.doctor || 'Praticien non renseigné'}</p>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => deleteAppointment(appointment.id)}
+                                                                className="text-red-500 hover:text-red-700"
+                                                            >
+                                                                <i className="fas fa-trash"></i>
+                                                            </button>
+                                                        </div>
+                                                        <div className="text-sm text-gray-600">
+                                                            <p><i className="far fa-calendar mr-2"></i>{formatDateTime(appointment.timestamp)}</p>
+                                                            {appointment.location && (
+                                                                <p><i className="fas fa-map-marker-alt mr-2"></i>{appointment.location}</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Vue Stocks */}
+                        {currentView === 'supplies' && (
+                            <div className="space-y-6">
+                                <h2 className="text-xl font-bold text-gray-800">Gestion des stocks</h2>
+
+                                <div className="space-y-4">
+                                    {/* Lait en poudre */}
+                                    <div className="bg-white/80 rounded-2xl p-4 shadow-sm border border-white/50">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xl">🥛</span>
+                                                <h3 className="font-semibold text-gray-800">Lait en poudre</h3>
+                                            </div>
+                                            <button
+                                                onClick={setMilkPowderDate}
+                                                className={`${themeColors.primaryBg} text-white px-3 py-1 rounded-lg text-sm`}
+                                            >
+                                                Définir date
+                                            </button>
+                                        </div>
+                                        <p className="text-sm text-gray-600">
+                                            Date d'ouverture : {stocks['milk-powder']?.date || 'Non renseignée'}
+                                        </p>
+                                        {stocks['milk-powder']?.date && (
+                                            <p className="text-xs text-orange-600 mt-1">
+                                                ⚠️ À consommer dans les 3-4 semaines après ouverture
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Bouteille d'eau */}
+                                    <div className="bg-white/80 rounded-2xl p-4 shadow-sm border border-white/50">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xl">💧</span>
+                                                <h3 className="font-semibold text-gray-800">Bouteille d'eau</h3>
+                                            </div>
+                                            <button
+                                                onClick={setWaterBottleDateTime}
+                                                className={`${themeColors.primaryBg} text-white px-3 py-1 rounded-lg text-sm`}
+                                            >
+                                                Définir date/heure
+                                            </button>
+                                        </div>
+                                        <p className="text-sm text-gray-600">
+                                            Ouverture : {stocks['water-bottle']?.datetime || 'Non renseignée'}
+                                        </p>
+                                        {stocks['water-bottle']?.datetime && (
+                                            <p className="text-xs text-orange-600 mt-1">
+                                                ⚠️ À consommer dans les 48-72h après ouverture
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {/* Vue Diversification */}
+                        {currentView === 'food' && (
+                            <div className="space-y-6">
+                                <h2 className="text-xl font-bold text-gray-800">Diversification alimentaire</h2>
+
+                                {(() => {
+                                    const diversification = getDiversificationRecommendations(age);
+
+                                    if (diversification.phase === 'Pas encore') {
+                                        return (
+                                            <div className="bg-blue-50 rounded-2xl p-4 shadow-sm border border-blue-200">
+                                                <div className="text-center">
+                                                    <div className="text-4xl mb-3">🍼</div>
+                                                    <h3 className="text-lg font-semibold text-blue-800 mb-2">{diversification.phase}</h3>
+                                                    <p className="text-blue-700 text-sm mb-2">{diversification.message}</p>
+                                                    <p className="text-blue-600 text-xs font-medium">{diversification.recommendation}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div className="space-y-4">
+                                            {/* Phase actuelle */}
+                                            <div className={`${themeColors.primaryLight} rounded-2xl p-4 shadow-sm border ${themeColors.primaryBorder}`}>
+                                                <h3 className={`text-lg font-semibold ${themeColors.primaryDark} mb-3`}>
+                                                    📅 Phase : {diversification.phase}
+                                                </h3>
+                                                <div className="space-y-2">
+                                                    {diversification.principles.map((principle, index) => (
+                                                        <div key={index} className="flex items-start gap-2">
+                                                            <span className="text-xs">•</span>
+                                                            <span className="text-xs text-gray-700">{principle}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Légumes */}
+                                            {diversification.vegetables && (
+                                                <div className="bg-white/80 rounded-2xl p-4 shadow-sm border border-white/50">
+                                                    <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                                        <span>🥕</span> Légumes recommandés
+                                                    </h4>
+                                                    <div className="space-y-2">
+                                                        {diversification.vegetables.map((veg, index) => (
+                                                            <div key={index} className="bg-green-50 rounded-lg p-2">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <span className="font-medium text-green-800">{veg.name}</span>
+                                                                    <span className="text-xs text-green-600">{veg.quantity}</span>
+                                                                </div>
+                                                                <div className="text-xs text-green-700">
+                                                                    <span>{veg.texture} • {veg.preparation}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Fruits */}
+                                            {diversification.fruits && (
+                                                <div className="bg-white/80 rounded-2xl p-4 shadow-sm border border-white/50">
+                                                    <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                                        <span>🍎</span> Fruits recommandés
+                                                    </h4>
+                                                    <div className="space-y-2">
+                                                        {diversification.fruits.map((fruit, index) => (
+                                                            <div key={index} className="bg-yellow-50 rounded-lg p-2">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <span className="font-medium text-yellow-800">{fruit.name}</span>
+                                                                    <span className="text-xs text-yellow-600">{fruit.quantity}</span>
+                                                                </div>
+                                                                <div className="text-xs text-yellow-700">
+                                                                    <span>{fruit.texture} • {fruit.preparation}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Protéines */}
+                                            {diversification.proteins && (
+                                                <div className="bg-white/80 rounded-2xl p-4 shadow-sm border border-white/50">
+                                                    <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                                        <span>🥩</span> Protéines
+                                                    </h4>
+                                                    <div className="space-y-2">
+                                                        {diversification.proteins.map((protein, index) => (
+                                                            <div key={index} className="bg-red-50 rounded-lg p-2">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <span className="font-medium text-red-800">{protein.name}</span>
+                                                                    <span className="text-xs text-red-600">{protein.quantity}</span>
+                                                                </div>
+                                                                <div className="text-xs text-red-700">
+                                                                    <span>{protein.texture} • {protein.preparation}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Féculents */}
+                                            {diversification.starches && (
+                                                <div className="bg-white/80 rounded-2xl p-4 shadow-sm border border-white/50">
+                                                    <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                                        <span>🍞</span> Féculents
+                                                    </h4>
+                                                    <div className="space-y-2">
+                                                        {diversification.starches.map((starch, index) => (
+                                                            <div key={index} className="bg-orange-50 rounded-lg p-2">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <span className="font-medium text-orange-800">{starch.name}</span>
+                                                                    <span className="text-xs text-orange-600">{starch.quantity}</span>
+                                                                </div>
+                                                                <div className="text-xs text-orange-700">
+                                                                    <span>{starch.texture} • {starch.preparation}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Laitages */}
+                                            {diversification.dairy && (
+                                                <div className="bg-white/80 rounded-2xl p-4 shadow-sm border border-white/50">
+                                                    <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                                        <span>🧀</span> Laitages
+                                                    </h4>
+                                                    <div className="space-y-2">
+                                                        {diversification.dairy.map((dairy, index) => (
+                                                            <div key={index} className="bg-blue-50 rounded-lg p-2">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <span className="font-medium text-blue-800">{dairy.name}</span>
+                                                                    <span className="text-xs text-blue-600">{dairy.quantity}</span>
+                                                                </div>
+                                                                <div className="text-xs text-blue-700">
+                                                                    <span>{dairy.texture} • {dairy.preparation}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Nouveaux aliments (après 12 mois) */}
+                                            {diversification.newFoods && (
+                                                <div className="bg-white/80 rounded-2xl p-4 shadow-sm border border-white/50">
+                                                    <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                                        <span>✨</span> Nouveaux aliments possibles
+                                                    </h4>
+                                                    <div className="space-y-2">
+                                                        {diversification.newFoods.map((food, index) => (
+                                                            <div key={index} className="bg-purple-50 rounded-lg p-2">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <span className="font-medium text-purple-800">{food.name}</span>
+                                                                    <span className="text-xs text-purple-600">Dès {food.age}</span>
+                                                                </div>
+                                                                <div className="text-xs text-purple-700">
+                                                                    <span>{food.note}</span>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Aliments à éviter */}
+                                            {diversification.avoid && (
+                                                <div className="bg-red-50 rounded-2xl p-4 shadow-sm border border-red-200">
+                                                    <h4 className="font-semibold text-red-800 mb-3 flex items-center gap-2">
+                                                        <span>⚠️</span> À éviter pour le moment
+                                                    </h4>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {diversification.avoid.map((item, index) => (
+                                                            <span key={index} className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs">
+                                                                {item}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+
+                        {/* Vue Conseils - maintenant avec motricité */}
+                        {currentView === 'tips' && (
+                            <div className="space-y-6">
+                                <h2 className="text-xl font-bold text-gray-800">Conseils & Développement moteur</h2>
+
+                                {/* Guide de motricité par défaut */}
+                                {(() => {
+                                    const motorGuide = getMotorDevelopmentForAge(age);
+
+                                    return (
+                                        <div className="space-y-4">
+                                            {/* En-tête du guide moteur */}
+                                            <div className={`${themeColors.primaryLight} rounded-2xl p-4 shadow-sm border ${themeColors.primaryBorder}`}>
+                                                <h3 className={`text-lg font-semibold ${themeColors.primaryDark} mb-2`}>
+                                                    🏃 {motorGuide.title}
+                                                </h3>
+                                                <p className="text-sm text-gray-700 mb-3">
+                                                    {motorGuide.description}
+                                                </p>
+
+                                                {/* Capacités attendues */}
+                                                <div className="bg-white/50 rounded-lg p-3">
+                                                    <h4 className="text-sm font-medium text-gray-800 mb-2">📋 Capacités développées :</h4>
+                                                    <div className="space-y-1">
+                                                        {motorGuide.skills.map((skill, index) => (
+                                                            <div key={index} className="flex items-start gap-2">
+                                                                <span className="text-xs text-green-600 mt-1">✓</span>
+                                                                <span className="text-xs text-gray-700">{skill}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Exercices recommandés */}
+                                            <div className="space-y-3">
+                                                <h4 className="font-semibold text-gray-800">🎯 Exercices recommandés :</h4>
+                                                {motorGuide.exercises.map((exercise, index) => (
+                                                    <div key={index} className="bg-white/80 rounded-2xl p-4 shadow-sm border border-white/50">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <h5 className="font-medium text-gray-800">{exercise.name}</h5>
+                                                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                                                {exercise.duration}
+                                                            </span>
+                                                        </div>
+
+                                                        <p className="text-sm text-gray-700 mb-2">
+                                                            {exercise.description}
+                                                        </p>
+
+                                                        <div className="grid grid-cols-1 gap-2 text-xs">
+                                                            <div className="bg-green-50 rounded-lg p-2">
+                                                                <span className="font-medium text-green-800">💪 Bénéfices : </span>
+                                                                <span className="text-green-700">{exercise.benefits}</span>
+                                                            </div>
+                                                            <div className="bg-orange-50 rounded-lg p-2">
+                                                                <span className="font-medium text-orange-800">⚠️ Sécurité : </span>
+                                                                <span className="text-orange-700">{exercise.safety}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            {/* Conseils généraux par âge - en bonus */}
+                                            <div className="bg-white/80 glass rounded-2xl p-4 shadow-sm border border-white/50">
+                                                <h4 className="font-semibold text-gray-800 mb-3">💡 Conseils généraux pour cet âge :</h4>
+                                                {(() => {
+                                                    const tips = getTipsForAge(age);
+                                                    return (
+                                                        <div className="text-sm text-gray-700 space-y-3">
+                                                            {tips.sections.slice(0, 2).map((section, index) => (
+                                                                <div key={index} className={`${section.color} p-3 rounded-lg`}>
+                                                                    <h5 className={`font-medium ${section.textColor} mb-2`}>{section.title}</h5>
+                                                                    <ul className="space-y-1 text-xs">
+                                                                        {section.tips.slice(0, 3).map((tip, tipIndex) => (
+                                                                            <li key={tipIndex}>• {tip}</li>
+                                                                        ))}
+                                                                        {section.tips.length > 3 && (
+                                                                            <li className="text-gray-500 italic">... et {section.tips.length - 3} autres conseils</li>
+                                                                        )}
+                                                                    </ul>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+
+                                            {/* Note importante */}
+                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                                <div className="flex items-start gap-2">
+                                                    <span className="text-blue-500 text-lg">ℹ️</span>
+                                                    <div className="text-xs text-blue-700">
+                                                        <strong>Important :</strong> Chaque bébé se développe à son propre rythme. Ces âges sont des repères, pas une règle stricte. L'essentiel est d'offrir un environnement sûr et stimulant, sans jamais forcer. En cas de préoccupation, consultez votre pédiatre.
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+
+                        {/* Formulaire médicament */}
+                        {currentView === 'medication-form' && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xl font-bold text-gray-800">💊 Nouveau médicament</h2>
+                                    <button
+                                        onClick={() => setCurrentView('medical')}
+                                        className="text-gray-500 hover:text-gray-700"
+                                    >
+                                        <i className="fas fa-times text-xl"></i>
+                                    </button>
+                                </div>
+
+                                <div className="bg-white/90 rounded-2xl p-6 shadow-xl border border-white/50">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Nom du médicament *</label>
+                                            <input
+                                                type="text"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                placeholder="Ex: Doliprane"
+                                                value={medicationData.name}
+                                                onChange={(e) => setMedicationData(prev => ({ ...prev, name: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Dosage *</label>
+                                            <input
+                                                type="text"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                placeholder="Ex: 2.5ml"
+                                                value={medicationData.dosage}
+                                                onChange={(e) => setMedicationData(prev => ({ ...prev, dosage: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+                                                <input
+                                                    type="date"
+                                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                    value={medicationData.date}
+                                                    onChange={(e) => setMedicationData(prev => ({ ...prev, date: e.target.value }))}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Heure *</label>
+                                                <input
+                                                    type="time"
+                                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                    value={medicationData.time}
+                                                    onChange={(e) => setMedicationData(prev => ({ ...prev, time: e.target.value }))}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Intervalle (heures)</label>
+                                            <input
+                                                type="number"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                placeholder="Ex: 6 (pour toutes les 6h)"
+                                                value={medicationData.interval}
+                                                onChange={(e) => setMedicationData(prev => ({ ...prev, interval: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <button
+                                            onClick={saveMedication}
+                                            className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 rounded-xl font-bold"
+                                        >
+                                            Enregistrer le médicament
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Formulaire rendez-vous */}
+                        {currentView === 'appointment-form' && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xl font-bold text-gray-800">📅 Nouveau rendez-vous</h2>
+                                    <button
+                                        onClick={() => setCurrentView('medical')}
+                                        className="text-gray-500 hover:text-gray-700"
+                                    >
+                                        <i className="fas fa-times text-xl"></i>
+                                    </button>
+                                </div>
+
+                                <div className="bg-white/90 rounded-2xl p-6 shadow-xl border border-white/50">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Type de rendez-vous *</label>
+                                            <input
+                                                type="text"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                placeholder="Ex: Pédiatre, Vaccination"
+                                                value={appointmentData.type}
+                                                onChange={(e) => setAppointmentData(prev => ({ ...prev, type: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Médecin/Praticien</label>
+                                            <input
+                                                type="text"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                placeholder="Ex: Dr. Martin"
+                                                value={appointmentData.doctor}
+                                                onChange={(e) => setAppointmentData(prev => ({ ...prev, doctor: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
+                                                <input
+                                                    type="date"
+                                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                    value={appointmentData.date}
+                                                    onChange={(e) => setAppointmentData(prev => ({ ...prev, date: e.target.value }))}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Heure *</label>
+                                                <input
+                                                    type="time"
+                                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                    value={appointmentData.time}
+                                                    onChange={(e) => setAppointmentData(prev => ({ ...prev, time: e.target.value }))}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Lieu</label>
+                                            <input
+                                                type="text"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                placeholder="Ex: Clinique Saint-Vincent"
+                                                value={appointmentData.location}
+                                                onChange={(e) => setAppointmentData(prev => ({ ...prev, location: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <button
+                                            onClick={saveAppointment}
+                                            className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white py-4 rounded-xl font-bold"
+                                        >
+                                            Enregistrer le rendez-vous
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Formulaire principal */}
+                        {showForm && (
+                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                                <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-lg font-bold text-gray-800">
+                                            {formType === 'feeding' ? '🍼 ' + (editingId ? 'Modifier le biberon' : 'Nouveau biberon') : '👶 ' + (editingId ? 'Modifier la couche' : 'Nouvelle couche')}
+                                        </h3>
+                                        <button onClick={closeForm} className="text-gray-400 hover:text-gray-600 text-xl">
+                                            <i className="fas fa-times"></i>
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Heure</label>
+                                                <input
+                                                    type="time"
+                                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                    value={formData.time}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, time: e.target.value }))}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                                                <input
+                                                    type="date"
+                                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                    value={formData.date}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {formType === 'feeding' && (
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Quantité (ml) {recommendations && `(Recommandé : ${recommendations.volume})`}
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                    placeholder="120"
+                                                    value={formData.amount}
+                                                    onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+                                                />
+                                            </div>
+                                        )}
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Pipi</label>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setFormData(prev => ({ ...prev, hasPee: true }))}
+                                                    className={`flex-1 py-3 rounded-xl font-medium transition-all ${formData.hasPee
+                                                        ? `${themeColors.primaryBg} text-white`
+                                                        : 'bg-gray-100 text-gray-600'
+                                                        }`}
+                                                >
+                                                    Oui 💧
+                                                </button>
+                                                <button
+                                                    onClick={() => setFormData(prev => ({ ...prev, hasPee: false }))}
+                                                    className={`flex-1 py-3 rounded-xl font-medium transition-all ${!formData.hasPee
+                                                        ? 'bg-gray-500 text-white'
+                                                        : 'bg-gray-100 text-gray-600'
+                                                        }`}
+                                                >
+                                                    Non
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Caca</label>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => setFormData(prev => ({ ...prev, hasPoop: true }))}
+                                                    className={`flex-1 py-3 rounded-xl font-medium transition-all ${formData.hasPoop
+                                                        ? 'bg-orange-500 text-white'
+                                                        : 'bg-gray-100 text-gray-600'
+                                                        }`}
+                                                >
+                                                    Oui 💩
+                                                </button>
+                                                <button
+                                                    onClick={() => setFormData(prev => ({ ...prev, hasPoop: false }))}
+                                                    className={`flex-1 py-3 rounded-xl font-medium transition-all ${!formData.hasPoop
+                                                        ? 'bg-gray-500 text-white'
+                                                        : 'bg-gray-100 text-gray-600'
+                                                        }`}
+                                                >
+                                                    Non
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {formData.hasPoop && (
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-2">Quantité</label>
+                                                    <select
+                                                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                        value={formData.poopQuantity}
+                                                        onChange={(e) => setFormData(prev => ({ ...prev, poopQuantity: e.target.value }))}
+                                                    >
+                                                        <option value="">Choisir...</option>
+                                                        <option value="peu">🤏 Un peu</option>
+                                                        <option value="moyen">👌 Moyen</option>
+                                                        <option value="beaucoup">🙌 Beaucoup</option>
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-2">Consistance</label>
+                                                    <select
+                                                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                        value={formData.poopConsistency}
+                                                        onChange={(e) => setFormData(prev => ({ ...prev, poopConsistency: e.target.value }))}
+                                                    >
+                                                        <option value="">Choisir...</option>
+                                                        <option value="liquide">💧 Liquide</option>
+                                                        <option value="molle">🟡 Molle</option>
+                                                        <option value="normale">🟤 Normale</option>
+                                                        <option value="dure">🔴 Dure</option>
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-2">Couleur</label>
+                                                    <select
+                                                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                        value={formData.poopColor}
+                                                        onChange={(e) => setFormData(prev => ({ ...prev, poopColor: e.target.value }))}
+                                                    >
+                                                        <option value="">Choisir...</option>
+                                                        <option value="noir">⚫ Noir</option>
+                                                        <option value="marron">🟤 Marron</option>
+                                                        <option value="vert">🟢 Vert</option>
+                                                        <option value="jaune">🟡 Jaune</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            onClick={saveEntry}
+                                            className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 rounded-xl font-bold"
+                                        >
+                                            {editingId ? 'Modifier' : 'Enregistrer'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<BabyTracker />, document.getElementById('root'));
+    </script>
+</body>
+
+</html>
