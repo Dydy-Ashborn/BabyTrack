@@ -922,13 +922,16 @@
             }, []);
 
             // Écoute des données Firebase
+            // Écoute des données Firebase
             useEffect(() => {
                 if (!user) return;
 
+                const familyCode = user.code;
                 const unsubscribers = [];
 
-                // Écoute des entrées
+                // Écoute des entrées filtrées par famille
                 const entriesUnsubscribe = db.collection('entries')
+                    .where('familyCode', '==', familyCode)
                     .orderBy('timestamp', 'desc')
                     .onSnapshot((snapshot) => {
                         const entriesData = [];
@@ -940,8 +943,9 @@
                     });
                 unsubscribers.push(entriesUnsubscribe);
 
-                // Écoute des médicaments
+                // Écoute des médicaments filtrés par famille
                 const medicationsUnsubscribe = db.collection('medications')
+                    .where('familyCode', '==', familyCode)
                     .orderBy('timestamp', 'desc')
                     .onSnapshot((snapshot) => {
                         const medicationsData = [];
@@ -952,8 +956,9 @@
                     });
                 unsubscribers.push(medicationsUnsubscribe);
 
-                // Écoute des rendez-vous
+                // Écoute des rendez-vous filtrés par famille
                 const appointmentsUnsubscribe = db.collection('appointments')
+                    .where('familyCode', '==', familyCode)
                     .orderBy('timestamp', 'desc')
                     .onSnapshot((snapshot) => {
                         const appointmentsData = [];
@@ -964,8 +969,9 @@
                     });
                 unsubscribers.push(appointmentsUnsubscribe);
 
-                // Écoute des stocks
+                // Écoute des stocks filtrés par famille
                 const stocksUnsubscribe = db.collection('stocks')
+                    .where('familyCode', '==', familyCode)
                     .onSnapshot((snapshot) => {
                         const stocksData = {};
                         snapshot.forEach((doc) => {
@@ -980,7 +986,6 @@
                     unsubscribers.forEach(unsubscribe => unsubscribe());
                 };
             }, [user]);
-
             // Mise à jour du graphique
             useEffect(() => {
                 if (currentView === 'daily' && periodView === 'daily' && chartRef.current && entries.length > 0) {
@@ -1131,6 +1136,7 @@
                 const entry = {
                     type: formType,
                     timestamp: new Date(`${date}T${time}:00`).toISOString(),
+                    familyCode: user.code, // Ajout du code famille
                     hasPee,
                     hasPoop,
                     poopQuantity,
@@ -1154,7 +1160,6 @@
                     alert('Erreur lors de la sauvegarde');
                 }
             };
-
             const deleteEntry = async (entryId) => {
                 if (!confirm('Supprimer cette entrée ?')) return;
 
@@ -1178,6 +1183,7 @@
                     name,
                     dosage,
                     timestamp: new Date(`${date}T${time}:00`).toISOString(),
+                    familyCode: user.code, // Ajout du code famille
                     interval: interval ? parseInt(interval) : null,
                     lastGiven: new Date(`${date}T${time}:00`).toISOString()
                 };
@@ -1191,7 +1197,6 @@
                     alert('Erreur lors de la sauvegarde du médicament');
                 }
             };
-
             const giveMedication = async (medicationId) => {
                 const medication = medications.find(m => m.id === medicationId);
                 if (!medication) return;
@@ -1231,7 +1236,8 @@
                     type,
                     doctor,
                     location,
-                    timestamp: new Date(`${date}T${time}:00`).toISOString()
+                    timestamp: new Date(`${date}T${time}:00`).toISOString(),
+                    familyCode: user.code // Ajout du code famille
                 };
 
                 try {
@@ -1243,7 +1249,6 @@
                     alert('Erreur lors de la sauvegarde du rendez-vous');
                 }
             };
-
             const deleteAppointment = async (appointmentId) => {
                 if (!confirm('Supprimer ce rendez-vous ?')) return;
 
@@ -1259,14 +1264,18 @@
                 if (!date) return;
 
                 try {
-                    // Supprimer l'ancien s'il existe
-                    const existingDocs = await db.collection('stocks').where('type', '==', 'milk-powder').get();
+                    // Supprimer l'ancien s'il existe pour cette famille
+                    const existingDocs = await db.collection('stocks')
+                        .where('type', '==', 'milk-powder')
+                        .where('familyCode', '==', user.code)
+                        .get();
                     existingDocs.forEach(doc => doc.ref.delete());
 
                     await db.collection('stocks').add({
                         type: 'milk-powder',
                         date: date,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        familyCode: user.code // Ajout du code famille
                     });
                 } catch (error) {
                     console.error('Erreur sauvegarde date lait:', error);
@@ -1279,21 +1288,24 @@
                 if (!datetime) return;
 
                 try {
-                    // Supprimer l'ancien s'il existe
-                    const existingDocs = await db.collection('stocks').where('type', '==', 'water-bottle').get();
+                    // Supprimer l'ancien s'il existe pour cette famille
+                    const existingDocs = await db.collection('stocks')
+                        .where('type', '==', 'water-bottle')
+                        .where('familyCode', '==', user.code)
+                        .get();
                     existingDocs.forEach(doc => doc.ref.delete());
 
                     await db.collection('stocks').add({
                         type: 'water-bottle',
                         datetime: datetime,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        familyCode: user.code // Ajout du code famille
                     });
                 } catch (error) {
                     console.error('Erreur sauvegarde datetime eau:', error);
                     alert('Erreur lors de la sauvegarde');
                 }
             };
-
             // Graphique quotidien
             const updateDailyChart = () => {
                 if (!chartRef.current) return;
