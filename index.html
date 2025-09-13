@@ -3,8 +3,24 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>BabyTrack</title>
+    
+    <!-- PWA Configuration -->
+    <link rel="icon" type="image/png" href="logo.PNG" />
+    <link rel="apple-touch-icon" href="logo.PNG" />
+    <link rel="apple-touch-icon" sizes="180x180" href="logo.PNG" />
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- PWA Métadonnées -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="BabyTrack">
+    <meta name="theme-color" content="#3B82F6">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="format-detection" content="telephone=no">
+    
+    <!-- Scripts et styles -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -13,7 +29,19 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
     <style>
+        body {
+            overscroll-behavior: none;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+
+        body::-webkit-scrollbar {
+            display: none;
+        }
+
         .glass {
             backdrop-filter: blur(10px);
             background: rgba(255, 255, 255, 0.7);
@@ -40,12 +68,9 @@
         }
 
         @keyframes pulse-gentle {
-
-            0%,
-            100% {
+            0%, 100% {
                 opacity: 1;
             }
-
             50% {
                 opacity: 0.7;
             }
@@ -553,6 +578,30 @@
             }
         };
 
+        // Calendrier vaccinal français
+        const VACCINE_SCHEDULE = {
+            2: [
+                { name: 'DTC-Polio-Hib (1ère injection)', required: true },
+                { name: 'Pneumocoque (1ère injection)', required: true },
+                { name: 'Méningocoque C (1ère injection)', required: true }
+            ],
+            4: [
+                { name: 'DTC-Polio-Hib (2ème injection)', required: true },
+                { name: 'Pneumocoque (2ème injection)', required: true }
+            ],
+            11: [
+                { name: 'DTC-Polio-Hib (3ème injection)', required: true },
+                { name: 'Pneumocoque (3ème injection)', required: true },
+                { name: 'Méningocoque C (2ème injection)', required: true },
+                { name: 'ROR (1ère injection)', required: true }
+            ],
+            12: [
+                { name: 'Hépatite B (si pas fait à la naissance)', required: false }
+            ],
+            16: [
+                { name: 'ROR (2ème injection)', required: true }
+            ]
+        };
         const BabyTracker = () => {
             // États principaux
             const [user, setUser] = useState(null);
@@ -560,6 +609,36 @@
             const [medications, setMedications] = useState([]);
             const [appointments, setAppointments] = useState([]);
             const [stocks, setStocks] = useState({});
+            // État pour le suivi du poids
+            const [currentWeight, setCurrentWeight] = useState(null);
+            const [lastWeightUpdate, setLastWeightUpdate] = useState(null);
+            // État pour le suivi des vaccins
+            const [vaccines, setVaccines] = useState([]);
+            const [vaccineData, setVaccineData] = useState({
+                name: '',
+                date: '',
+                nextDue: '',
+                notes: ''
+            });
+            // État pour le suivi de la diversification alimentaire
+            const [diversificationEntries, setDiversificationEntries] = useState([]);
+            const [diversificationData, setDiversificationData] = useState({
+                food: '',
+                date: '',
+                rating: 5,
+                notes: ''
+            });
+
+            const [wardrobe, setWardrobe] = useState([]);
+            const [wardrobeData, setWardrobeData] = useState({
+                type: '',
+                size: '',
+                quantity: 1,
+                notes: ''
+            });
+            // État pour le suivi de la croissance
+            const [currentHeight, setCurrentHeight] = useState(null);
+            const [lastHeightUpdate, setLastHeightUpdate] = useState(null);
 
             // États d'interface
             const [showAuth, setShowAuth] = useState(true);
@@ -571,6 +650,8 @@
             const [editingId, setEditingId] = useState(null);
             const [currentPage, setCurrentPage] = useState(0);
             const [historyFilter, setHistoryFilter] = useState('today');
+            const [tipsExpanded, setTipsExpanded] = useState(0);
+            const [editingWardrobeId, setEditingWardrobeId] = useState(null);
 
             // États des formulaires
             const [authData, setAuthData] = useState({
@@ -624,6 +705,21 @@
                 const birth = new Date(user.birthDate);
                 const today = new Date();
                 return Math.floor((today - birth) / (1000 * 60 * 60 * 24));
+            };
+
+            const formatAgeDisplay = (ageInDays) => {
+                if (ageInDays <= 30) {
+                    return `Jour ${ageInDays}`;
+                }
+
+                const months = Math.floor(ageInDays / 30);
+                const remainingDays = ageInDays % 30;
+
+                if (remainingDays === 0) {
+                    return `${months} mois`;
+                } else {
+                    return `${months} mois ${remainingDays}j`;
+                }
             };
 
             const formatTime = (timestamp) => {
@@ -787,6 +883,30 @@
                 return Math.round(average / 5) * 5;
             };
 
+            const calculateMilkByWeight = (weightKg, ageInDays) => {
+                if (!weightKg || weightKg <= 0) return null;
+
+                // Calcul de base : 150ml par kg de poids par jour
+                const baseMilk = Math.round(weightKg * 150);
+
+                // Nombre de biberons selon l'âge
+                let feedingsPerDay;
+                if (ageInDays <= 30) feedingsPerDay = 6;
+                else if (ageInDays <= 60) feedingsPerDay = 5;
+                else if (ageInDays <= 120) feedingsPerDay = 5;
+                else if (ageInDays <= 150) feedingsPerDay = 4;
+                else if (ageInDays <= 240) feedingsPerDay = 4;
+                else feedingsPerDay = 3;
+
+                const mlPerFeeding = Math.round(baseMilk / feedingsPerDay);
+
+                return {
+                    totalPerDay: baseMilk,
+                    feedingsPerDay,
+                    mlPerFeeding,
+                    weightUsed: weightKg
+                };
+            };
             // Calcul du prochain biberon
             const calculateNextFeeding = () => {
                 const age = calculateAge();
@@ -982,6 +1102,44 @@
                     });
                 unsubscribers.push(stocksUnsubscribe);
 
+                // Écoute des vaccins filtrés par famille
+                const vaccinesUnsubscribe = db.collection('vaccines')
+                    .where('familyCode', '==', familyCode)
+                    .orderBy('timestamp', 'desc')
+                    .onSnapshot((snapshot) => {
+                        const vaccinesData = [];
+                        snapshot.forEach((doc) => {
+                            vaccinesData.push({ id: doc.id, ...doc.data() });
+                        });
+                        setVaccines(vaccinesData);
+                    });
+                unsubscribers.push(vaccinesUnsubscribe);
+
+                // Écoute de la diversification filtrée par famille
+                const diversificationUnsubscribe = db.collection('diversification')
+                    .where('familyCode', '==', familyCode)
+                    .orderBy('timestamp', 'desc')
+                    .onSnapshot((snapshot) => {
+                        const diversificationData = [];
+                        snapshot.forEach((doc) => {
+                            diversificationData.push({ id: doc.id, ...doc.data() });
+                        });
+                        setDiversificationEntries(diversificationData);
+                    });
+                unsubscribers.push(diversificationUnsubscribe);
+
+                // Écoute de la garde-robe filtrée par famille
+                const wardrobeUnsubscribe = db.collection('wardrobe')
+                    .where('familyCode', '==', familyCode)
+                    .orderBy('timestamp', 'desc')
+                    .onSnapshot((snapshot) => {
+                        const wardrobeData = [];
+                        snapshot.forEach((doc) => {
+                            wardrobeData.push({ id: doc.id, ...doc.data() });
+                        });
+                        setWardrobe(wardrobeData);
+                    });
+                unsubscribers.push(wardrobeUnsubscribe);
                 return () => {
                     unsubscribers.forEach(unsubscribe => unsubscribe());
                 };
@@ -1040,6 +1198,21 @@
                     if (doc.exists) {
                         const userData = doc.data();
                         setUser(userData);
+
+                        // Charger le poids et la taille sauvegardés
+                        if (userData.currentWeight) {
+                            setCurrentWeight(userData.currentWeight);
+                        }
+                        if (userData.lastWeightUpdate) {
+                            setLastWeightUpdate(userData.lastWeightUpdate);
+                        }
+                        if (userData.currentHeight) {
+                            setCurrentHeight(userData.currentHeight);
+                        }
+                        if (userData.lastHeightUpdate) {
+                            setLastHeightUpdate(userData.lastHeightUpdate);
+                        }
+
                         localStorage.setItem('familyCode', code.toUpperCase());
                         setShowAuth(false);
                     } else {
@@ -1075,15 +1248,29 @@
                 // Suggestion automatique pour biberon
                 if (type === 'feeding') {
                     const age = calculateAge();
-                    const recommendations = getFeedingRecommendations(age);
-                    if (recommendations) {
-                        const defaultAmount = getDefaultAmount(recommendations.volume);
-                        if (defaultAmount) {
-                            setFormData(prev => ({ ...prev, amount: defaultAmount.toString() }));
+                    let suggestedAmount = '';
+
+                    // Calcul par poids si disponible
+                    if (currentWeight) {
+                        const calculation = calculateMilkByWeight(currentWeight, age);
+                        if (calculation) {
+                            suggestedAmount = calculation.mlPerFeeding.toString();
+                        }
+                    } else {
+                        // Fallback sur l'ancien système
+                        const recommendations = getFeedingRecommendations(age);
+                        if (recommendations) {
+                            const defaultAmount = getDefaultAmount(recommendations.volume);
+                            if (defaultAmount) {
+                                suggestedAmount = defaultAmount.toString();
+                            }
                         }
                     }
-                }
 
+                    if (suggestedAmount) {
+                        setFormData(prev => ({ ...prev, amount: suggestedAmount }));
+                    }
+                }
                 setShowForm(true);
             };
 
@@ -1283,6 +1470,42 @@
                 }
             };
 
+            // Gestion des vaccins
+            const saveVaccine = async () => {
+                const { name, date, nextDue, notes } = vaccineData;
+
+                if (!name || !date) {
+                    alert('Nom du vaccin et date obligatoires');
+                    return;
+                }
+
+                const vaccine = {
+                    name,
+                    timestamp: new Date(`${date}T12:00:00`).toISOString(),
+                    nextDue,
+                    notes,
+                    familyCode: user.code
+                };
+
+                try {
+                    await db.collection('vaccines').add(vaccine);
+                    setVaccineData({ name: '', date: '', nextDue: '', notes: '' });
+                    setCurrentView('medical');
+                } catch (error) {
+                    console.error('Erreur sauvegarde vaccin:', error);
+                    alert('Erreur lors de la sauvegarde du vaccin');
+                }
+            };
+
+            const deleteVaccine = async (vaccineId) => {
+                if (!confirm('Supprimer ce vaccin ?')) return;
+
+                try {
+                    await db.collection('vaccines').doc(vaccineId).delete();
+                } catch (error) {
+                    console.error('Erreur suppression vaccin:', error);
+                }
+            };
             const setWaterBottleDateTime = async () => {
                 const datetime = prompt('Date et heure d\'ouverture de la bouteille d\'eau (JJ/MM/AAAA HH:MM):');
                 if (!datetime) return;
@@ -1305,6 +1528,96 @@
                     console.error('Erreur sauvegarde datetime eau:', error);
                     alert('Erreur lors de la sauvegarde');
                 }
+            };
+            // Gestion de la diversification
+            const saveDiversificationEntry = async () => {
+                const { food, date, rating, notes } = diversificationData;
+
+                if (!food || !date) {
+                    alert('Aliment et date obligatoires');
+                    return;
+                }
+
+                const entry = {
+                    food,
+                    timestamp: new Date(`${date}T12:00:00`).toISOString(),
+                    rating: parseInt(rating),
+                    notes,
+                    familyCode: user.code
+                };
+
+                try {
+                    await db.collection('diversification').add(entry);
+                    setDiversificationData({ food: '', date: '', rating: 5, notes: '' });
+                    setCurrentView('food');
+                } catch (error) {
+                    console.error('Erreur sauvegarde diversification:', error);
+                    alert('Erreur lors de la sauvegarde');
+                }
+            };
+
+            const deleteDiversificationEntry = async (entryId) => {
+                if (!confirm('Supprimer cette entrée ?')) return;
+
+                try {
+                    await db.collection('diversification').doc(entryId).delete();
+                } catch (error) {
+                    console.error('Erreur suppression diversification:', error);
+                }
+            };
+            // Gestion de la garde-robe
+            const saveWardrobeItem = async () => {
+                const { type, size, quantity, notes } = wardrobeData;
+
+                if (!type || !size) {
+                    alert('Type de vêtement et taille obligatoires');
+                    return;
+                }
+
+                const item = {
+                    type,
+                    size,
+                    quantity: parseInt(quantity),
+                    notes,
+                    familyCode: user.code,
+                    timestamp: new Date().toISOString()
+                };
+
+                try {
+                    if (editingWardrobeId) {
+                        await db.collection('wardrobe').doc(editingWardrobeId).update(item);
+                    } else {
+                        await db.collection('wardrobe').add(item);
+                    }
+                    setWardrobeData({ type: '', size: '', quantity: 1, notes: '' });
+                    setEditingWardrobeId(null);
+                    setCurrentView('wardrobe');
+                } catch (error) {
+                    console.error('Erreur sauvegarde garde-robe:', error);
+                    alert('Erreur lors de la sauvegarde');
+                }
+            };
+            const deleteWardrobeItem = async (itemId) => {
+                if (!confirm('Supprimer cet article ?')) return;
+
+                try {
+                    await db.collection('wardrobe').doc(itemId).delete();
+                } catch (error) {
+                    console.error('Erreur suppression garde-robe:', error);
+                }
+            };
+            const editWardrobeItem = (itemId) => {
+                const item = wardrobe.find(w => w.id === itemId);
+                if (!item) return;
+
+                setWardrobeData({
+                    type: item.type,
+                    size: item.size,
+                    quantity: item.quantity,
+                    notes: item.notes || ''
+                });
+                setEditingWardrobeId(itemId);
+                setCurrentView('wardrobe-form');
             };
             // Graphique quotidien
             const updateDailyChart = () => {
@@ -1710,7 +2023,11 @@
                 return (
                     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
                         <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
-                            <h1 className="text-2xl font-bold text-center mb-6">BabyTrack</h1>
+                            <div className="text-center mb-6">
+                                <div className="inline-block mb-4">
+                                    <img src="logo.PNG" alt="BabyTrack Logo" className="w-40 h-40 mx-auto rounded-2xl" />                                </div>
+
+                            </div>
 
                             {authMode === 'login' ? (
                                 <div className="space-y-4">
@@ -1840,12 +2157,29 @@
 
 
                                     <div className="flex items-center mb-1">
-
-                                        <h1 className="text-2xl font-bold text-gray-800">{user?.babyName}</h1>
+                                        <div className="flex items-center gap-2">
+                                            <h1 className="text-2xl font-bold text-gray-800">{user?.babyName}</h1>
+                                            <span className="text-2xl">
+                                                {user?.gender === 'girl' ? '💖' : '💙'}
+                                            </span>
+                                        </div>
                                     </div>
                                     <div className="bg-white/80 rounded-full px-4 py-1 shadow-sm border border-white/50">
                                         <p className="text-sm font-medium text-gray-700">
-                                            Jour {age} • {user?.birthWeight?.toFixed(3)}kg • {user?.birthHeight}cm
+                                            {formatAgeDisplay(age)} •
+                                            <button
+                                                onClick={() => setCurrentView('weight-update')}
+                                                className="hover:text-blue-600 underline decoration-dotted"
+                                            >
+                                                {currentWeight ? `${currentWeight}kg` : `${user?.birthWeight?.toFixed(3)}kg`}
+                                            </button>
+                                            •
+                                            <button
+                                                onClick={() => setCurrentView('height-update')}
+                                                className="hover:text-blue-600 underline decoration-dotted"
+                                            >
+                                                {user?.birthHeight}cm
+                                            </button>
                                         </p>
                                     </div>
                                     <p className="text-xs text-gray-500 mt-2">
@@ -1855,6 +2189,54 @@
                                 <div className="w-8"></div>
                             </div>
                         </div>
+                        {/* Navigation */}
+                        <div className="bg-white/80 glass rounded-2xl p-2 mb-6 shadow-sm border border-white/50">
+                            <div className="grid grid-cols-6 gap-1">
+                                <TabButton
+                                    id="daily"
+                                    label="Quotidien"
+                                    icon="fas fa-home"
+                                    active={currentView === 'daily'}
+                                    onClick={() => setCurrentView('daily')}
+                                />
+                                <TabButton
+                                    id="medical"
+                                    label="Médical"
+                                    icon="fas fa-stethoscope"
+                                    active={currentView === 'medical'}
+                                    onClick={() => setCurrentView('medical')}
+                                />
+                                <TabButton
+                                    id="supplies"
+                                    label="Stocks"
+                                    icon="fas fa-boxes"
+                                    active={currentView === 'supplies'}
+                                    onClick={() => setCurrentView('supplies')}
+                                />
+                                <TabButton
+                                    id="food"
+                                    label="Diversif."
+                                    icon="fas fa-utensils"
+                                    active={currentView === 'food'}
+                                    onClick={() => setCurrentView('food')}
+                                />
+                                <TabButton
+                                    id="wardrobe"
+                                    label="Garde-robe"
+                                    icon="fas fa-tshirt"
+                                    active={currentView === 'wardrobe'}
+                                    onClick={() => setCurrentView('wardrobe')}
+                                />
+                                <TabButton
+                                    id="tips"
+                                    label="Conseils"
+                                    icon="fas fa-lightbulb"
+                                    active={currentView === 'tips'}
+                                    onClick={() => setCurrentView('tips')}
+                                />
+                            </div>
+                        </div>
+
 
                         {/* Prochain biberon - déplacé en haut */}
                         {currentView === 'daily' && nextFeedingInfo && periodView === 'daily' && (
@@ -1920,71 +2302,88 @@
                             </div>
                         )}
                         {/* Guide alimentaire - déplacé avant les statistiques */}
-                        {recommendations && periodView === 'daily' && (
-                            <div className="bg-white/80 glass rounded-2xl p-4 shadow-sm border border-white/50 mb-6">
-                                <h3 className="text-sm font-semibold text-gray-800 mb-3">📏 Guide alimentaire - Jour {age}</h3>
-                                <div className="grid grid-cols-2 gap-2 mb-2">
-                                    <div>
-                                        <strong>📏 Volume :</strong><br />
-                                        <span className={`${themeColors.primaryDark} font-medium`}>{recommendations.volume}</span>
-                                    </div>
-                                    <div>
-                                        <strong>⏰ Fréquence :</strong><br />
-                                        <span className={`${themeColors.primaryDark} font-medium`}>{recommendations.frequency}</span>
-                                    </div>
-                                </div>
-                                {recommendations.total && (
-                                    <div className="mb-2">
-                                        <strong>📊 Total/jour :</strong>
-                                        <span className={`${themeColors.primaryDark} font-medium ml-2`}>{recommendations.total}</span>
-                                    </div>
-                                )}
-                                <div className={`text-xs ${themeColors.primaryText} italic`}>
-                                    💡 {recommendations.comment}
-                                </div>
+                        {(recommendations || currentWeight) && periodView === 'daily' && currentView === 'daily' && (
+                            <div className="bg-white/80 glass rounded-xl p-3 shadow-sm border border-white/50 mb-6">
+                                {(() => {
+                                    // Prioriser le calcul par poids si disponible
+                                    const weightCalculation = currentWeight ? calculateMilkByWeight(currentWeight, age) : null;
+
+                                    if (weightCalculation) {
+                                        return (
+                                            <>
+                                                {/* Header compact */}
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <span className="text-xs font-medium text-green-700">
+                                                        ⚖️ Calcul personnalisé ({currentWeight}kg)
+                                                    </span>
+                                                </div>
+
+                                                {/* Données en ligne */}
+                                                <div className="grid grid-cols-3 gap-2 mb-3">
+                                                    <div className="text-center">
+                                                        <div className="text-lg font-bold text-gray-800">{weightCalculation.mlPerFeeding}ml</div>
+                                                        <div className="text-xs text-gray-600">par biberon</div>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <div className="text-lg font-bold text-gray-800">{weightCalculation.feedingsPerDay}×</div>
+                                                        <div className="text-xs text-gray-600">par jour</div>
+                                                    </div>
+                                                    <div className="text-center">
+                                                        <div className="text-lg font-bold text-gray-800">{weightCalculation.totalPerDay}ml</div>
+                                                        <div className="text-xs text-gray-600">total</div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Note compacte */}
+                                                <div className="text-xs text-green-600 italic">
+                                                    💡 Calcul adapté au poids (150ml/kg/jour)
+                                                </div>
+                                            </>
+                                        );
+                                    } else if (recommendations) {
+                                        return (
+                                            <>
+                                                {/* Header compact */}
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <span className="text-xs font-medium text-blue-700">
+                                                        📚 Guide par âge ({formatAgeDisplay(age)})
+                                                    </span>
+                                                </div>
+
+                                                {/* Données en ligne */}
+                                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                                    <div>
+                                                        <span className="text-xs text-gray-600">Volume : </span>
+                                                        <span className="font-semibold text-gray-800">{recommendations.volume}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-xs text-gray-600">Fréquence : </span>
+                                                        <span className="font-semibold text-gray-800">{recommendations.frequency}</span>
+                                                    </div>
+                                                </div>
+
+                                                {recommendations.total && (
+                                                    <div className="mb-2">
+                                                        <span className="text-xs text-gray-600">Total/jour : </span>
+                                                        <span className="font-semibold text-gray-800">{recommendations.total}</span>
+                                                    </div>
+                                                )}
+
+                                                {/* Notes compactes */}
+                                                <div className="text-xs text-blue-600 italic mb-1">
+                                                    💡 {recommendations.comment}
+                                                </div>
+                                                <div className="text-xs text-yellow-600">
+                                                    ⚖️ Renseignez le poids pour un calcul personnalisé
+                                                </div>
+                                            </>
+                                        );
+                                    }
+                                    return null;
+                                })()}
                             </div>
                         )}
 
-                        {/* Navigation */}
-                        <div className="bg-white/80 glass rounded-2xl p-2 mb-6 shadow-sm border border-white/50">
-                            <div className="grid grid-cols-5 gap-1">
-                                <TabButton
-                                    id="daily"
-                                    label="Quotidien"
-                                    icon="fas fa-home"
-                                    active={currentView === 'daily'}
-                                    onClick={() => setCurrentView('daily')}
-                                />
-                                <TabButton
-                                    id="medical"
-                                    label="Médical"
-                                    icon="fas fa-stethoscope"
-                                    active={currentView === 'medical'}
-                                    onClick={() => setCurrentView('medical')}
-                                />
-                                <TabButton
-                                    id="supplies"
-                                    label="Stocks"
-                                    icon="fas fa-boxes"
-                                    active={currentView === 'supplies'}
-                                    onClick={() => setCurrentView('supplies')}
-                                />
-                                <TabButton
-                                    id="food"
-                                    label="Diversif."
-                                    icon="fas fa-utensils"
-                                    active={currentView === 'food'}
-                                    onClick={() => setCurrentView('food')}
-                                />
-                                <TabButton
-                                    id="tips"
-                                    label="Conseils"
-                                    icon="fas fa-lightbulb"
-                                    active={currentView === 'tips'}
-                                    onClick={() => setCurrentView('tips')}
-                                />
-                            </div>
-                        </div>
                         {/* Contenu selon la vue */}
 
                         {/* Contenu selon la vue */}
@@ -2329,6 +2728,7 @@
 
                                 {/* Rendez-vous */}
                                 <div>
+
                                     <h3 className="text-lg font-semibold text-gray-800 mb-3">📅 Rendez-vous</h3>
                                     <div className="space-y-3">
                                         {appointments.length === 0 ? (
@@ -2380,7 +2780,83 @@
                                         )}
                                     </div>
                                 </div>
+                                {/* Vaccins */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="text-lg font-semibold text-gray-800">💉 Suivi vaccinal</h3>
+                                        <button
+                                            onClick={() => setCurrentView('vaccine-form')}
+                                            className="bg-green-500 text-white px-3 py-1 rounded-lg text-sm"
+                                        >
+                                            + Vaccin
+                                        </button>
+                                    </div>
+
+                                    {/* Vaccins à venir selon l'âge */}
+                                    {(() => {
+                                        const ageInMonths = Math.floor(age / 30);
+                                        const upcomingVaccines = [];
+
+                                        Object.keys(VACCINE_SCHEDULE).forEach(monthKey => {
+                                            const month = parseInt(monthKey);
+                                            if (month >= ageInMonths && month <= ageInMonths + 2) {
+                                                VACCINE_SCHEDULE[month].forEach(vaccine => {
+                                                    const isAlreadyDone = vaccines.some(v => v.name.includes(vaccine.name.split('(')[0].trim()));
+                                                    if (!isAlreadyDone) {
+                                                        upcomingVaccines.push({ ...vaccine, dueMonth: month });
+                                                    }
+                                                });
+                                            }
+                                        });
+
+                                        return upcomingVaccines.length > 0 && (
+                                            <div className="bg-blue-50 rounded-lg p-3 mb-3">
+                                                <h4 className="font-medium text-blue-800 mb-2">📅 Vaccins à prévoir :</h4>
+                                                <div className="space-y-1">
+                                                    {upcomingVaccines.map((vaccine, index) => (
+                                                        <div key={index} className="text-sm text-blue-700">
+                                                            <span className="font-medium">{vaccine.dueMonth} mois :</span> {vaccine.name}
+                                                            {vaccine.required && <span className="text-red-600"> *</span>}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <p className="text-xs text-blue-600 mt-2">* = Obligatoire</p>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Liste des vaccins effectués */}
+                                    <div className="space-y-3">
+                                        {vaccines.length === 0 ? (
+                                            <p className="text-gray-500 text-center py-6">Aucun vaccin enregistré</p>
+                                        ) : (
+                                            vaccines.map(vaccine => (
+                                                <div key={vaccine.id} className="bg-white/80 rounded-xl p-3 shadow-sm border border-white/50">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <h5 className="font-semibold text-gray-800">{vaccine.name}</h5>
+                                                        <button
+                                                            onClick={() => deleteVaccine(vaccine.id)}
+                                                            className="text-red-500 hover:text-red-700"
+                                                        >
+                                                            <i className="fas fa-trash text-sm"></i>
+                                                        </button>
+                                                    </div>
+                                                    <div className="text-sm text-gray-600">
+                                                        <p><i className="fas fa-calendar mr-2"></i>{formatDate(vaccine.timestamp)}</p>
+                                                        {vaccine.nextDue && (
+                                                            <p><i className="fas fa-clock mr-2"></i>Prochain : {vaccine.nextDue}</p>
+                                                        )}
+                                                        {vaccine.notes && (
+                                                            <p><i className="fas fa-note-sticky mr-2"></i>{vaccine.notes}</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
                             </div>
+
                         )}
 
                         {/* Vue Stocks */}
@@ -2609,6 +3085,55 @@
                                                 </div>
                                             )}
 
+                                            {/* Suivi personnalisé de la diversification */}
+                                            <div className="space-y-4 mt-6">
+                                                <div className="flex items-center justify-between">
+                                                    <h3 className="text-lg font-semibold text-gray-800">📝 Mon suivi personnalisé</h3>
+                                                    <button
+                                                        onClick={() => setCurrentView('diversification-form')}
+                                                        className={`${themeColors.primaryBg} text-white px-3 py-1 rounded-lg text-sm`}
+                                                    >
+                                                        + Aliment testé
+                                                    </button>
+                                                </div>
+
+                                                <div className="space-y-3">
+                                                    {diversificationEntries.length === 0 ? (
+                                                        <p className="text-gray-500 text-center py-6">Aucun aliment testé enregistré</p>
+                                                    ) : (
+                                                        diversificationEntries.map(entry => (
+                                                            <div key={entry.id} className="bg-white/80 rounded-xl p-3 shadow-sm border border-white/50">
+                                                                <div className="flex items-center justify-between mb-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <h5 className="font-semibold text-gray-800">{entry.food}</h5>
+                                                                        <div className="flex items-center gap-1">
+                                                                            {[...Array(entry.rating)].map((_, i) => (
+                                                                                <span key={i} className="text-xs text-yellow-400">
+                                                                                    ⭐
+                                                                                </span>
+                                                                            ))}
+                                                                            <span className="text-xs text-gray-600 ml-1">{entry.rating}/10</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => deleteDiversificationEntry(entry.id)}
+                                                                        className="text-red-500 hover:text-red-700"
+                                                                    >
+                                                                        <i className="fas fa-trash text-sm"></i>
+                                                                    </button>
+                                                                </div>
+                                                                <div className="text-sm text-gray-600">
+                                                                    <p><i className="fas fa-calendar mr-2"></i>{formatDate(entry.timestamp)}</p>
+                                                                    {entry.notes && (
+                                                                        <p><i className="fas fa-note-sticky mr-2"></i>{entry.notes}</p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+
                                             {/* Aliments à éviter */}
                                             {diversification.avoid && (
                                                 <div className="bg-red-50 rounded-2xl p-4 shadow-sm border border-red-200">
@@ -2630,6 +3155,91 @@
                             </div>
                         )}
 
+                        {/* Vue Garde-robe */}
+                        {currentView === 'wardrobe' && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xl font-bold text-gray-800">👕 Garde-robe</h2>
+                                    <button
+                                        onClick={() => setCurrentView('wardrobe-form')}
+                                        className={`${themeColors.primaryBg} text-white px-3 py-1 rounded-lg text-sm`}
+                                    >
+                                        + Article
+                                    </button>
+                                </div>
+
+                                {/* Tri par taille */}
+                                {(() => {
+                                    const groupedBySize = {};
+                                    wardrobe.forEach(item => {
+                                        if (!groupedBySize[item.size]) {
+                                            groupedBySize[item.size] = [];
+                                        }
+                                        groupedBySize[item.size].push(item);
+                                    });
+
+                                    const sizes = Object.keys(groupedBySize).sort((a, b) => {
+                                        const sizeOrder = ['Naissance', '1 mois', '3 mois', '6 mois', '9 mois', '12 mois', '18 mois', '2 ans', '3 ans'];
+                                        return sizeOrder.indexOf(a) - sizeOrder.indexOf(b);
+                                    });
+
+                                    return sizes.length === 0 ? (
+                                        <p className="text-gray-500 text-center py-8">Aucun vêtement enregistré</p>
+                                    ) : (
+                                        sizes.map(size => (
+                                            <div key={size} className="bg-white/80 rounded-2xl p-4 shadow-sm border border-white/50">
+                                                <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                                    <i className="fas fa-ruler text-blue-500"></i>
+                                                    Taille {size}
+                                                </h3>
+                                                <div className="grid grid-cols-1 gap-3">
+                                                    {groupedBySize[size].map(item => (
+                                                        <div key={item.id} className="bg-gray-50 rounded-lg p-3">
+                                                            <div className="flex items-center justify-between mb-2">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-lg">
+                                                                        {item.type === 'Body' && '👕'}
+                                                                        {item.type === 'Pyjama' && '🩱'}
+                                                                        {item.type === 'Pantalon' && '👖'}
+                                                                        {item.type === 'T-shirt' && '👕'}
+                                                                        {item.type === 'Robe' && '👗'}
+                                                                        {item.type === 'Chaussettes' && '🧦'}
+                                                                        {item.type === 'Autre' && '👶'}
+                                                                    </span>
+                                                                    <span className="font-medium text-gray-800">{item.type}</span>
+                                                                    <span className={`${themeColors.primaryLight} ${themeColors.primaryDark} px-2 py-1 rounded-full text-xs font-medium`}>
+                                                                        x{item.quantity}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <button
+                                                                        onClick={() => editWardrobeItem(item.id)}
+                                                                        className={`${themeColors.primaryText} ${themeColors.primaryHover}`}
+                                                                    >
+                                                                        <i className="fas fa-edit text-sm"></i>
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => deleteWardrobeItem(item.id)}
+                                                                        className="text-red-500 hover:text-red-700"
+                                                                    >
+                                                                        <i className="fas fa-trash text-sm"></i>
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                            {item.notes && (
+                                                                <p className="text-sm text-gray-600">
+                                                                    <i className="fas fa-note-sticky mr-2"></i>{item.notes}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))
+                                    );
+                                })()}
+                            </div>
+                        )}
                         {/* Vue Conseils - maintenant avec motricité */}
                         {currentView === 'tips' && (
                             <div className="space-y-6">
@@ -2734,6 +3344,160 @@
                             </div>
                         )}
 
+                        {/* Vue Mise à jour du poids */}
+                        {currentView === 'weight-update' && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xl font-bold text-gray-800">⚖️ Mise à jour du poids</h2>
+                                    <button
+                                        onClick={() => setCurrentView('daily')}
+                                        className="text-gray-500 hover:text-gray-700"
+                                    >
+                                        <i className="fas fa-times text-xl"></i>
+                                    </button>
+                                </div>
+
+                                <div className="bg-white/90 rounded-2xl p-6 shadow-xl border border-white/50">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Poids actuel (kg) *
+                                            </label>
+                                            <input
+                                                type="number"
+                                                step="0.001"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                placeholder="3.500"
+                                                value={currentWeight || ''}
+                                                onChange={(e) => setCurrentWeight(parseFloat(e.target.value) || null)}
+                                            />
+                                        </div>
+
+                                        {currentWeight && (
+                                            <div className={`${themeColors.primaryLight} rounded-lg p-3`}>
+                                                <h4 className="font-medium text-gray-800 mb-2">📊 Nouveau calcul automatique :</h4>
+                                                {(() => {
+                                                    const calculation = calculateMilkByWeight(currentWeight, age);
+                                                    return calculation ? (
+                                                        <div className="text-sm text-gray-700">
+                                                            <p>• <strong>Total par jour :</strong> {calculation.totalPerDay}ml</p>
+                                                            <p>• <strong>Biberons recommandés :</strong> {calculation.feedingsPerDay} par jour</p>
+                                                            <p>• <strong>Volume par biberon :</strong> {calculation.mlPerFeeding}ml</p>
+                                                        </div>
+                                                    ) : null;
+                                                })()}
+                                            </div>
+                                        )}
+
+                                        <button
+                                            onClick={async () => {
+                                                if (currentWeight) {
+                                                    try {
+                                                        // Sauvegarder dans Firebase
+                                                        await db.collection('families').doc(user.code).update({
+                                                            currentWeight: currentWeight,
+                                                            lastWeightUpdate: new Date().toISOString()
+                                                        });
+
+                                                        // Mettre à jour l'état local
+                                                        setUser(prev => ({ ...prev, currentWeight: currentWeight }));
+                                                        setLastWeightUpdate(new Date().toISOString());
+                                                        setCurrentView('daily');
+                                                        alert('Poids mis à jour et sauvegardé !');
+                                                    } catch (error) {
+                                                        console.error('Erreur sauvegarde poids:', error);
+                                                        alert('Erreur lors de la sauvegarde');
+                                                    }
+                                                } else {
+                                                    alert('Veuillez entrer un poids valide');
+                                                }
+                                            }}
+                                            className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 rounded-xl font-bold"
+                                        >
+                                            Mettre à jour le poids
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {lastWeightUpdate && (
+                                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                                        <p className="text-sm text-yellow-800">
+                                            ℹ️ Dernière mise à jour : {formatDateTime(lastWeightUpdate)}
+                                        </p>
+                                        <p className="text-xs text-yellow-700 mt-1">
+                                            Pensez à mettre à jour le poids régulièrement pour des calculs précis.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {/* Vue Mise à jour de la taille */}
+                        {currentView === 'height-update' && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xl font-bold text-gray-800">📏 Mise à jour de la taille</h2>
+                                    <button
+                                        onClick={() => setCurrentView('daily')}
+                                        className="text-gray-500 hover:text-gray-700"
+                                    >
+                                        <i className="fas fa-times text-xl"></i>
+                                    </button>
+                                </div>
+
+                                <div className="bg-white/90 rounded-2xl p-6 shadow-xl border border-white/50">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Taille actuelle (cm) *
+                                            </label>
+                                            <input
+                                                type="number"
+                                                step="0.1"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                placeholder="52.5"
+                                                value={currentHeight || ''}
+                                                onChange={(e) => setCurrentHeight(parseFloat(e.target.value) || null)}
+                                            />
+                                        </div>
+
+                                        <button
+                                            onClick={async () => {
+                                                if (currentHeight) {
+                                                    try {
+                                                        await db.collection('families').doc(user.code).update({
+                                                            birthHeight: currentHeight
+                                                        });
+                                                        setUser(prev => ({ ...prev, birthHeight: currentHeight }));
+                                                        setLastHeightUpdate(new Date().toISOString());
+                                                        setCurrentView('daily');
+                                                        alert('Taille mise à jour !');
+                                                    } catch (error) {
+                                                        console.error('Erreur mise à jour taille:', error);
+                                                        alert('Erreur lors de la mise à jour');
+                                                    }
+                                                } else {
+                                                    alert('Veuillez entrer une taille valide');
+                                                }
+                                            }}
+                                            className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-4 rounded-xl font-bold"
+                                        >
+                                            Mettre à jour la taille
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {lastHeightUpdate && (
+                                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                                        <p className="text-sm text-yellow-800">
+                                            ℹ️ Dernière mise à jour : {formatDateTime(lastHeightUpdate)}
+                                        </p>
+                                        <p className="text-xs text-yellow-700 mt-1">
+                                            La taille peut être mesurée moins fréquemment que le poids.
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         {/* Formulaire médicament */}
                         {currentView === 'medication-form' && (
                             <div className="space-y-6">
@@ -3045,6 +3809,241 @@
                                             className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 rounded-xl font-bold"
                                         >
                                             {editingId ? 'Modifier' : 'Enregistrer'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {/* Formulaire vaccin */}
+                        {currentView === 'vaccine-form' && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xl font-bold text-gray-800">💉 Nouveau vaccin</h2>
+                                    <button
+                                        onClick={() => setCurrentView('medical')}
+                                        className="text-gray-500 hover:text-gray-700"
+                                    >
+                                        <i className="fas fa-times text-xl"></i>
+                                    </button>
+                                </div>
+
+                                <div className="bg-white/90 rounded-2xl p-6 shadow-xl border border-white/50">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Nom du vaccin *</label>
+                                            <input
+                                                type="text"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                placeholder="Ex: DTC-Polio-Hib (1ère injection)"
+                                                value={vaccineData.name}
+                                                onChange={(e) => setVaccineData(prev => ({ ...prev, name: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Date du vaccin *</label>
+                                            <input
+                                                type="date"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                value={vaccineData.date}
+                                                onChange={(e) => setVaccineData(prev => ({ ...prev, date: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Prochain rappel</label>
+                                            <input
+                                                type="text"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                placeholder="Ex: Dans 2 mois"
+                                                value={vaccineData.nextDue}
+                                                onChange={(e) => setVaccineData(prev => ({ ...prev, nextDue: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                                            <textarea
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                rows="3"
+                                                placeholder="Réaction, remarques..."
+                                                value={vaccineData.notes}
+                                                onChange={(e) => setVaccineData(prev => ({ ...prev, notes: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <button
+                                            onClick={saveVaccine}
+                                            className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 rounded-xl font-bold"
+                                        >
+                                            Enregistrer le vaccin
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {/* Formulaire diversification */}
+                        {currentView === 'diversification-form' && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xl font-bold text-gray-800">🥄 Nouvel aliment testé</h2>
+                                    <button
+                                        onClick={() => setCurrentView('food')}
+                                        className="text-gray-500 hover:text-gray-700"
+                                    >
+                                        <i className="fas fa-times text-xl"></i>
+                                    </button>
+                                </div>
+
+                                <div className="bg-white/90 rounded-2xl p-6 shadow-xl border border-white/50">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Aliment testé *</label>
+                                            <input
+                                                type="text"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                placeholder="Ex: Carotte, Pomme, Courgette..."
+                                                value={diversificationData.food}
+                                                onChange={(e) => setDiversificationData(prev => ({ ...prev, food: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Date du test *</label>
+                                            <input
+                                                type="date"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                value={diversificationData.date}
+                                                onChange={(e) => setDiversificationData(prev => ({ ...prev, date: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Réaction du bébé (sur 10) *
+                                            </label>
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <input
+                                                    type="range"
+                                                    min="1"
+                                                    max="10"
+                                                    className="flex-1"
+                                                    value={diversificationData.rating}
+                                                    onChange={(e) => setDiversificationData(prev => ({ ...prev, rating: e.target.value }))}
+                                                />
+                                                <span className="text-lg font-bold text-gray-700 min-w-[3rem]">
+                                                    {diversificationData.rating}/10
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between text-xs text-gray-500">
+                                                <span>😣 Refus total</span>
+                                                <span>😋 Adoré</span>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                                            <textarea
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                rows="3"
+                                                placeholder="Texture donnée, réaction, quantité mangée, allergies..."
+                                                value={diversificationData.notes}
+                                                onChange={(e) => setDiversificationData(prev => ({ ...prev, notes: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <button
+                                            onClick={saveDiversificationEntry}
+                                            className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 rounded-xl font-bold"
+                                        >
+                                            Enregistrer le test
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {/* Formulaire garde-robe */}
+                        {currentView === 'wardrobe-form' && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xl font-bold text-gray-800">👕 Nouvel article</h2>
+                                    <button
+                                        onClick={() => setCurrentView('wardrobe')}
+                                        className="text-gray-500 hover:text-gray-700"
+                                    >
+                                        <i className="fas fa-times text-xl"></i>
+                                    </button>
+                                </div>
+
+                                <div className="bg-white/90 rounded-2xl p-6 shadow-xl border border-white/50">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Type de vêtement *</label>
+                                            <select
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                value={wardrobeData.type}
+                                                onChange={(e) => setWardrobeData(prev => ({ ...prev, type: e.target.value }))}
+                                            >
+                                                <option value="">Choisir...</option>
+                                                <option value="Body">Body</option>
+                                                <option value="Pyjama">Pyjama</option>
+                                                <option value="T-shirt">T-shirt</option>
+                                                <option value="Pantalon">Pantalon</option>
+                                                <option value="Robe">Robe</option>
+                                                <option value="Chaussettes">Chaussettes</option>
+                                                <option value="Bonnet">Bonnet</option>
+                                                <option value="Gilet">Gilet</option>
+                                                <option value="Autre">Autre</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Taille *</label>
+                                            <select
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                value={wardrobeData.size}
+                                                onChange={(e) => setWardrobeData(prev => ({ ...prev, size: e.target.value }))}
+                                            >
+                                                <option value="">Choisir...</option>
+                                                <option value="Naissance">Naissance</option>
+                                                <option value="1 mois">1 mois</option>
+                                                <option value="3 mois">3 mois</option>
+                                                <option value="6 mois">6 mois</option>
+                                                <option value="9 mois">9 mois</option>
+                                                <option value="12 mois">12 mois</option>
+                                                <option value="18 mois">18 mois</option>
+                                                <option value="2 ans">2 ans</option>
+                                                <option value="3 ans">3 ans</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Quantité</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                value={wardrobeData.quantity}
+                                                onChange={(e) => setWardrobeData(prev => ({ ...prev, quantity: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                                            <textarea
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                rows="3"
+                                                placeholder="Couleur, marque, état..."
+                                                value={wardrobeData.notes}
+                                                onChange={(e) => setWardrobeData(prev => ({ ...prev, notes: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <button
+                                            onClick={saveWardrobeItem}
+                                            className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white py-4 rounded-xl font-bold"
+                                        >
+                                            Ajouter à la garde-robe
                                         </button>
                                     </div>
                                 </div>
