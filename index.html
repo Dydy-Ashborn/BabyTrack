@@ -13,6 +13,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="logo.PNG" />
     <link rel="manifest" href="manifest.json">
 
+
     <!-- PWA Métadonnées -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -179,6 +180,61 @@
             { days: [8, 9, 10, 11, 12, 13, 14], volume: '60–90ml', frequency: '6–8 fois/24h', total: '360–720ml', comment: 'Deuxième semaine, augmentation progressive' },
             { days: [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28], volume: '90–120ml', frequency: '6–7 fois/24h', total: '540–840ml', comment: 'Troisième et quatrième semaines' }
         ];
+        // Guide de sommeil par âge (basé sur le document fourni)
+        const SLEEP_GUIDE = {
+            "0-3": {
+                title: "Nouveau-né (0-3 mois)",
+                totalSleep: "16-18h par 24h",
+                naps: "4-6 périodes de sommeil",
+                cycles: "50 minutes environ",
+                tips: [
+                    "Cycles courts avec sommeil agité normal",
+                    "Pas de distinction jour/nuit au début",
+                    "Utiliser alternance lumière/obscurité",
+                    "Coucher sur le dos obligatoire"
+                ],
+                warning: "Le rythme est dicté par l'alimentation (2-4h)"
+            },
+            "3-6": {
+                title: "Jeune nourrisson (3-6 mois)",
+                totalSleep: "14-17h par 24h",
+                naps: "3-4 siestes par jour",
+                cycles: "Cycles s'allongent progressivement",
+                tips: [
+                    "Mise en place routine de coucher",
+                    "Déposer bébé somnolent mais éveillé",
+                    "Observer signes de fatigue précoces",
+                    "Routine calme 20-30 minutes"
+                ],
+                warning: "Apprentissage de l'autonomie commence"
+            },
+            "6-12": {
+                title: "Grand nourrisson (6-12 mois)",
+                totalSleep: "12-15h par 24h",
+                naps: "2-3 siestes (passage à 2 vers 9-12 mois)",
+                cycles: "Cycles plus longs, consolidation nocturne",
+                tips: [
+                    "Régressions normales liées au développement",
+                    "Angoisse séparation vers 8 mois possible",
+                    "Maintenir routine stable",
+                    "Sevrage nocturne envisageable si >6kg"
+                ],
+                warning: "Les régressions sont des signes de bon développement"
+            },
+            "12-36": {
+                title: "Tout-petit (12-36 mois)",
+                totalSleep: "12-14h par 24h",
+                naps: "2 siestes → 1 sieste vers 18 mois",
+                cycles: "Approche du sommeil adulte",
+                tips: [
+                    "Possibles terreurs nocturnes (ne pas réveiller)",
+                    "Cauchemars (rassurer et laisser se rendormir)",
+                    "Lit réservé au sommeil uniquement",
+                    "Pas d'écrans avant 2 ans"
+                ],
+                warning: "Maintenir cadre ferme et cohérent"
+            }
+        };
 
         const FEEDING_MONTHS = {
             1: { volume: '120–150ml', frequency: '5–6 fois/24h', total: '600–900ml', comment: '1 mois - Volumes stabilisés' },
@@ -261,124 +317,141 @@
         };
         // Guide de diversification alimentaire
         const DIVERSIFICATION_GUIDE = {
-            // 4-6 mois : Découverte des saveurs
-            4: {
-                phase: 'Découverte des saveurs',
+            "4-6": {
+                phase: "Découverte des saveurs (4-6 mois)",
                 principles: [
-                    'Le lait reste l\'aliment principal',
-                    'Un seul aliment nouveau à la fois',
-                    'Textures très lisses uniquement',
-                    'Commencer par les légumes au déjeuner'
+                    "Le lait reste l'aliment principal",
+                    "Un seul aliment nouveau à la fois",
+                    "Textures très lisses uniquement",
+                    "Commencer par les légumes au déjeuner"
                 ],
-                vegetables: [
-                    { name: 'Carotte', texture: 'Purée lisse', quantity: '1-2 c. à café', preparation: 'Bien cuite et mixée' },
-                    { name: 'Haricot vert', texture: 'Purée lisse', quantity: '1-2 c. à café', preparation: 'Bien cuits et mixés' },
-                    { name: 'Courgette', texture: 'Purée lisse', quantity: '1-2 c. à café', preparation: 'Sans pépins ni peau' },
-                    { name: 'Potiron', texture: 'Purée lisse', quantity: '1-2 c. à café', preparation: 'Chair uniquement' },
-                    { name: 'Brocoli', texture: 'Purée lisse', quantity: '1-2 c. à café', preparation: 'Fleurettes cuites' }
+                legumes: [
+                    { nom: "Carotte", preparation: "Cuite et mixée", quantite: "1-2 c. à café" },
+                    { nom: "Haricot vert", preparation: "Cuit et mixé", quantite: "1-2 c. à café" },
+                    { nom: "Courgette", preparation: "Sans pépins ni peau", quantite: "1-2 c. à café" },
+                    { nom: "Potiron", preparation: "Chair uniquement", quantite: "1-2 c. à café" },
+                    { nom: "Brocoli", preparation: "Fleurettes cuites", quantite: "1-2 c. à café" }
                 ],
                 fruits: [
-                    { name: 'Pomme', texture: 'Compote lisse', quantity: '1-2 c. à café', preparation: 'Cuite sans sucre' },
-                    { name: 'Poire', texture: 'Compote lisse', quantity: '1-2 c. à café', preparation: 'Cuite sans sucre' },
-                    { name: 'Banane', texture: 'Écrasée lisse', quantity: '1-2 c. à café', preparation: 'Bien mûre' }
+                    { nom: "Pomme", preparation: "Cuite sans sucre", quantite: "1-2 c. à café" },
+                    { nom: "Poire", preparation: "Cuite sans sucre", quantite: "1-2 c. à café" },
+                    { nom: "Banane", preparation: "Bien mûre écrasée", quantite: "1-2 c. à café" }
                 ],
-                avoid: ['Protéines', 'Féculents', 'Sel', 'Sucre', 'Miel']
+                feculents: [],
+                proteines: [],
+                produits_laitiers: [],
+                matieres_grasses: [],
+                interdits: ["Protéines", "Féculents", "Sel", "Sucre", "Miel"]
             },
-            6: {
-                phase: 'Diversification active',
+            "6-8": {
+                phase: "Diversification active (6-8 mois)",
                 principles: [
-                    'Introduction des protéines et féculents',
-                    'Textures moins lisses progressivement',
-                    'Alternance viande/poisson/œuf',
-                    '10g de protéines maximum par jour'
+                    "Introduction des protéines et féculents",
+                    "Textures moins lisses progressivement",
+                    "10g de protéines maximum par jour",
+                    "1 c. à café d'huile végétale par repas"
                 ],
-                vegetables: [
-                    { name: 'Tous les légumes précédents', texture: 'Purée épaisse', quantity: '100-130g', preparation: 'Moulinés' },
-                    { name: 'Épinard', texture: 'Purée épaisse', quantity: '100-130g', preparation: 'Bien cuits' },
-                    { name: 'Blanc de poireau', texture: 'Purée épaisse', quantity: '100-130g', preparation: 'Partie blanche uniquement' },
-                    { name: 'Petits pois', texture: 'Purée épaisse', quantity: '100-130g', preparation: 'Sans peau' }
+                legumes: [
+                    { nom: "Tous les précédents", preparation: "Purée épaisse → écrasés", quantite: "100-130g" },
+                    { nom: "Épinard", preparation: "Bien cuits", quantite: "100-130g" },
+                    { nom: "Blanc de poireau", preparation: "Partie blanche uniquement", quantite: "100-130g" },
+                    { nom: "Petits pois", preparation: "Sans peau", quantite: "100-130g" }
                 ],
                 fruits: [
-                    { name: 'Pêche', texture: 'Compote épaisse', quantity: '60-80g', preparation: 'Sans peau' },
-                    { name: 'Abricot', texture: 'Compote épaisse', quantity: '60-80g', preparation: 'Sans noyau' },
-                    { name: 'Fruits précédents', texture: 'Compote épaisse', quantity: '60-80g', preparation: 'Texture évolutive' }
+                    { nom: "Pêche", preparation: "Sans peau, compote épaisse", quantite: "60-80g" },
+                    { nom: "Abricot", preparation: "Sans noyau, compote épaisse", quantite: "60-80g" },
+                    { nom: "Fruits précédents", preparation: "Texture évolutive", quantite: "60-80g" }
                 ],
-                proteins: [
-                    { name: 'Viande blanche', texture: 'Mixée fine', quantity: '10g (2 c. à café)', preparation: 'Bien cuite' },
-                    { name: 'Poisson blanc', texture: 'Mixé fin', quantity: '10g (2 c. à café)', preparation: 'Sans arêtes' },
-                    { name: 'Jaune d\'œuf', texture: 'Mixé', quantity: '1/4 d\'œuf dur', preparation: 'Bien cuit' }
+                feculents: [
+                    { nom: "Pomme de terre", preparation: "Purée lisse", quantite: "Mélangé aux légumes" },
+                    { nom: "Patate douce", preparation: "Bien cuite", quantite: "Mélangé aux légumes" },
+                    { nom: "Riz", preparation: "Très cuit et mixé", quantite: "Mélangé aux légumes" }
                 ],
-                starches: [
-                    { name: 'Pomme de terre', texture: 'Purée lisse', quantity: 'Mélangé aux légumes', preparation: 'Bien cuite' },
-                    { name: 'Patate douce', texture: 'Purée lisse', quantity: 'Mélangé aux légumes', preparation: 'Bien cuite' },
-                    { name: 'Riz', texture: 'Très cuit et mixé', quantity: 'Mélangé aux légumes', preparation: 'Bien cuit' }
+                proteines: [
+                    { nom: "Viande blanche", preparation: "Mixée fine, bien cuite", quantite: "10g (2 c. à café)" },
+                    { nom: "Poisson blanc", preparation: "Mixé fin, sans arêtes", quantite: "10g (2 c. à café)" },
+                    { nom: "Jaune d'œuf", preparation: "Œuf dur mixé", quantite: "1/4 d'œuf dur" }
                 ],
-                dairy: [
-                    { name: 'Yaourt bébé', texture: 'Lisse', quantity: '1 pot', preparation: 'Spécifique bébé' },
-                    { name: 'Fromage blanc bébé', texture: 'Lisse', quantity: '1 pot', preparation: 'Spécifique bébé' }
-                ]
+                produits_laitiers: [
+                    { nom: "Yaourt bébé", preparation: "Spécifique bébé", quantite: "1 pot" },
+                    { nom: "Fromage blanc bébé", preparation: "Spécifique bébé", quantite: "1 pot" }
+                ],
+                matieres_grasses: [
+                    { nom: "Huile végétale", preparation: "Crue dans les purées", quantite: "1 c. à café/repas" }
+                ],
+                interdits: ["Sel", "Sucre", "Miel", "Charcuterie"]
             },
-            8: {
-                phase: 'Premiers morceaux',
+            "8-12": {
+                phase: "Premiers morceaux (8-12 mois)",
                 principles: [
-                    'Introduction de tous les aliments',
-                    'Morceaux fondants et écrasés',
-                    'Développement de la mastication',
-                    'Fromages pasteurisés autorisés'
+                    "Introduction de tous les aliments",
+                    "Morceaux fondants et écrasés",
+                    "Développement de la mastication",
+                    "20g de protéines par jour"
                 ],
-                vegetables: [
-                    { name: 'Tous légumes', texture: 'Écrasés/petits morceaux', quantity: '120-150g', preparation: 'Morceaux fondants' },
-                    { name: 'Légumes crus', texture: 'Râpés fins', quantity: 'En petite quantité', preparation: 'Bien mûrs' }
+                legumes: [
+                    { nom: "Tous légumes", preparation: "Écrasés/petits morceaux fondants", quantite: "120-150g" },
+                    { nom: "Légumes crus", preparation: "Râpés fins, bien mûrs", quantite: "En petite quantité" }
                 ],
                 fruits: [
-                    { name: 'Tous fruits', texture: 'Écrasés/morceaux', quantity: '80-100g', preparation: 'Mûrs et tendres' },
-                    { name: 'Banane', texture: 'Morceaux', quantity: 'Libre', preparation: 'En morceaux fondants' }
+                    { nom: "Tous fruits", preparation: "Écrasés/morceaux mûrs et tendres", quantite: "80-100g" },
+                    { nom: "Banane", preparation: "Morceaux fondants", quantite: "Libre" }
                 ],
-                proteins: [
-                    { name: 'Viande rouge', texture: 'Hachée', quantity: '10g', preparation: 'Bien cuite et hachée' },
-                    { name: 'Poisson gras', texture: 'Émietté', quantity: '10g', preparation: '1 fois par semaine' },
-                    { name: 'Œuf entier', texture: 'Haché', quantity: '1/4 d\'œuf dur', preparation: 'Dur et haché' }
+                feculents: [
+                    { nom: "Pâtes", preparation: "Petites/écrasées, bien cuites", quantite: "Selon appétit" },
+                    { nom: "Pain", preparation: "Croûtons pour mastication", quantite: "Quelques morceaux" },
+                    { nom: "Céréales", preparation: "Semoule, quinoa bien cuits", quantite: "Selon appétit" }
                 ],
-                starches: [
-                    { name: 'Pâtes', texture: 'Petites/écrasées', quantity: 'Selon appétit', preparation: 'Bien cuites' },
-                    { name: 'Pain', texture: 'Croûtons', quantity: 'Quelques morceaux', preparation: 'Pour la mastication' },
-                    { name: 'Céréales', texture: 'Cuites', quantity: 'Selon appétit', preparation: 'Semoule, quinoa...' }
+                proteines: [
+                    { nom: "Viande rouge", preparation: "Hachée, bien cuite", quantite: "20g" },
+                    { nom: "Poisson gras", preparation: "Émietté, 1 fois/semaine", quantite: "20g" },
+                    { nom: "Œuf entier", preparation: "Dur et haché", quantite: "1/2 œuf dur" }
                 ],
-                dairy: [
-                    { name: 'Fromages à pâte cuite', texture: 'Petits morceaux', quantity: '15g/jour', preparation: 'Gruyère, comté...' },
-                    { name: 'Yaourt nature', texture: 'Standard', quantity: '1 pot', preparation: 'Non sucré' }
-                ]
+                produits_laitiers: [
+                    { nom: "Fromages à pâte cuite", preparation: "Petits morceaux", quantite: "15g/jour" },
+                    { nom: "Yaourt nature", preparation: "Non sucré", quantite: "1 pot" }
+                ],
+                matieres_grasses: [
+                    { nom: "Huile végétale", preparation: "Crue", quantite: "1 c. à café/repas" },
+                    { nom: "Beurre", preparation: "Cru, en petite quantité", quantite: "1/2 c. à café" }
+                ],
+                interdits: ["Sel", "Sucre", "Miel", "Charcuterie", "Fruits à coque entiers"]
             },
-            12: {
-                phase: 'Alimentation de grand',
+            "12+": {
+                phase: "Alimentation de grand (12+ mois)",
                 principles: [
-                    'Alimentation comme la famille',
-                    'Éviter sel, sucre et miel',
-                    '20g de protéines par jour',
-                    'Lait de croissance jusqu\'à 3 ans'
+                    "Alimentation comme la famille adaptée",
+                    "Éviter sel, sucre et miel avant 12 mois",
+                    "20g de protéines par jour",
+                    "Lait de croissance jusqu'à 3 ans"
                 ],
-                vegetables: [
-                    { name: 'Tous légumes', texture: 'Normaux', quantity: 'Selon appétit', preparation: 'Comme la famille' }
+                legumes: [
+                    { nom: "Tous légumes", preparation: "Normaux, comme la famille", quantite: "Selon appétit" }
                 ],
                 fruits: [
-                    { name: 'Tous fruits', texture: 'Normaux', quantity: 'Selon appétit', preparation: 'Crus ou cuits' }
+                    { nom: "Tous fruits", preparation: "Crus ou cuits", quantite: "Selon appétit" }
                 ],
-                proteins: [
-                    { name: 'Toutes viandes', texture: 'Coupée', quantity: '20g', preparation: 'Bien cuites' },
-                    { name: 'Tous poissons', texture: 'Coupé', quantity: '20g', preparation: 'Sans arêtes' },
-                    { name: 'Œuf', texture: 'Normal', quantity: '1/2 œuf', preparation: 'Toutes cuissons' }
+                feculents: [
+                    { nom: "Tous féculents", preparation: "Variés", quantite: "Selon appétit" }
                 ],
-                starches: [
-                    { name: 'Tous féculents', texture: 'Normaux', quantity: 'Selon appétit', preparation: 'Variés' }
+                proteines: [
+                    { nom: "Toutes viandes", preparation: "Coupées, bien cuites", quantite: "20g" },
+                    { nom: "Tous poissons", preparation: "Sans arêtes", quantite: "20g" },
+                    { nom: "Œuf", preparation: "Toutes cuissons", quantite: "1/2 à 1 œuf" }
                 ],
-                dairy: [
-                    { name: 'Tous fromages au lait cru', texture: 'Normaux', quantity: '20g/jour', preparation: 'Qualité' }
+                produits_laitiers: [
+                    { nom: "Tous fromages au lait cru", preparation: "Qualité", quantite: "20g/jour" },
+                    { nom: "Lait de croissance", preparation: "Jusqu'à 3 ans", quantite: "500ml/jour" }
                 ],
-                newFoods: [
-                    { name: 'Miel', age: '12 mois', note: 'Possible après 1 an' },
-                    { name: 'Fruits de mer', age: '12 mois', note: 'Bien cuits' },
-                    { name: 'Fruits à coque', age: '12 mois', note: 'En poudre ou purée' }
-                ]
+                matieres_grasses: [
+                    { nom: "Toutes matières grasses", preparation: "Variées", quantite: "1 c. à café/repas" }
+                ],
+                nouveautes: [
+                    { nom: "Miel", age: "12 mois", note: "Possible après 1 an" },
+                    { nom: "Fruits de mer", age: "12 mois", note: "Bien cuits" },
+                    { nom: "Fruits à coque", age: "12 mois", note: "En poudre ou purée" }
+                ],
+                interdits: ["Charcuterie grasse", "Excès de sel/sucre"]
             }
         };
         // Guide de motricité par âge
@@ -641,6 +714,14 @@
                 quantity: 1,
                 notes: ''
             });
+            // États pour le suivi du sommeil
+            const [sleepSessions, setSleepSessions] = useState([]);
+            const [currentSleep, setCurrentSleep] = useState(null); // Session en cours
+            const [sleepData, setSleepData] = useState({
+                startTime: '',
+                endTime: '',
+                date: new Date().toISOString().slice(0, 10)
+            });
             // État pour le suivi de la croissance
             const [currentHeight, setCurrentHeight] = useState(null);
             const [lastHeightUpdate, setLastHeightUpdate] = useState(null);
@@ -659,18 +740,9 @@
             const [showMoreMenu, setShowMoreMenu] = useState(false);
             const [showPlusMenu, setShowPlusMenu] = useState(false);
             const [editingWardrobeId, setEditingWardrobeId] = useState(null);
+            const [editingSleepId, setEditingSleepId] = useState(null);
             // État pour le suivi des soins quotidiens
-            const [dailyCare, setDailyCare] = useState({
-                cordon: {
-                    active: true, // Peut être désactivé quand le cordon tombe
-                    morningDone: false,
-                    eveningDone: false,
-                    lastDate: null
-                },
-                visage: { done: false, lastDate: null },
-                vitamines: { done: false, lastDate: null }
-            });
-
+            const [dailyCare, setDailyCare] = useState(null); // null pendant le chargement
             // États des formulaires
             const [authData, setAuthData] = useState({
                 code: '',
@@ -709,12 +781,25 @@
                 time: '',
                 location: ''
             });
+            // Etats pour les pédiatres et hôpitaux
+            const [showExportMenu, setShowExportMenu] = useState(false);
+            const [exportPeriod, setExportPeriod] = useState('week');
+            const [isExporting, setIsExporting] = useState(false);
+
+            //Etats pour les graphiques sommeil
+            const [sleepPeriodView, setSleepPeriodView] = useState('week');
+            const sleepChartRef = useRef(null);
+            const sleepChartInstance = useRef(null);
 
             // États pour les notifications
             const [notificationPermission, setNotificationPermission] = useState('default');
             const [activeNotifications, setActiveNotifications] = useState([]);
             // Ajoutez ceci avec vos autres déclarations useState
             const [scheduledNotifications, setScheduledNotifications] = useState(new Map());
+
+
+
+
             // Demander la permission pour les notifications
             const requestNotificationPermission = async () => {
                 if ('Notification' in window) {
@@ -728,6 +813,7 @@
                 }
                 return false;
             };
+
             const scheduleAllNotifications = () => {
                 if (notificationPermission !== 'granted') return;
 
@@ -995,25 +1081,52 @@
 
             // Fonction pour obtenir les recommandations de diversification
             const getDiversificationRecommendations = (ageInDays) => {
-                const ageInMonths = Math.floor(ageInDays / 30);
-
-                if (ageInMonths < 4) {
+                if (ageInDays < 120) { // < 4 mois
                     return {
                         phase: 'Pas encore',
                         message: 'La diversification commence généralement entre 4 et 6 mois. Le lait reste l\'aliment unique et complet.',
                         recommendation: 'Continuer l\'allaitement ou le biberon exclusivement'
                     };
-                } else if (ageInMonths >= 4 && ageInMonths < 6) {
-                    return DIVERSIFICATION_GUIDE[4];
-                } else if (ageInMonths >= 6 && ageInMonths < 8) {
-                    return DIVERSIFICATION_GUIDE[6];
-                } else if (ageInMonths >= 8 && ageInMonths < 12) {
-                    return DIVERSIFICATION_GUIDE[8];
+                } else if (ageInDays < 150) { // 4-5 mois
+                    return {
+                        ...DIVERSIFICATION_GUIDE["4-6"],
+                        phase: "Début de diversification (4-5 mois)",
+                        note: "Phase d'initiation très progressive. Privilégier les légumes doux."
+                    };
+                } else if (ageInDays < 180) { // 5-6 mois  
+                    return {
+                        ...DIVERSIFICATION_GUIDE["4-6"],
+                        phase: "Diversification confirmée (5-6 mois)",
+                        note: "Élargir progressivement la gamme de légumes et fruits."
+                    };
+                } else if (ageInDays < 210) { // 6-7 mois
+                    return {
+                        ...DIVERSIFICATION_GUIDE["6-8"],
+                        phase: "Introduction protéines (6-7 mois)",
+                        note: "Commencer les protéines (viande, poisson, œuf) et féculents."
+                    };
+                } else if (ageInDays < 240) { // 7-8 mois
+                    return {
+                        ...DIVERSIFICATION_GUIDE["6-8"],
+                        phase: "Textures évolutives (7-8 mois)",
+                        note: "Passage aux textures moins lisses, morceaux fondants."
+                    };
+                } else if (ageInDays < 300) { // 8-10 mois
+                    return {
+                        ...DIVERSIFICATION_GUIDE["8-12"],
+                        phase: "Morceaux et mastication (8-10 mois)",
+                        note: "Développement de la mastication, morceaux plus gros."
+                    };
+                } else if (ageInDays < 365) { // 10-12 mois
+                    return {
+                        ...DIVERSIFICATION_GUIDE["8-12"],
+                        phase: "Alimentation familiale (10-12 mois)",
+                        note: "Préparation à l'alimentation familiale adaptée."
+                    };
                 } else {
-                    return DIVERSIFICATION_GUIDE[12];
+                    return DIVERSIFICATION_GUIDE["12+"];
                 }
             };
-
             // Fonction pour obtenir le guide de motricité
             const getMotorDevelopmentForAge = (ageInDays) => {
                 const ageInMonths = Math.floor(ageInDays / 30);
@@ -1225,51 +1338,59 @@
             // Filtrage de l'historique avec pagination
             const getFilteredHistory = () => {
                 const now = new Date();
-                let filteredEntries = [];
+                let startDate, endDate;
 
                 switch (historyFilter) {
                     case 'today':
-                        const todayStart = new Date(now);
-                        todayStart.setHours(0, 0, 0, 0);
-                        const todayEnd = new Date(now);
-                        todayEnd.setHours(23, 59, 59, 999);
-
-                        filteredEntries = entries.filter(entry => {
-                            const entryDate = new Date(entry.timestamp);
-                            return entryDate >= todayStart && entryDate <= todayEnd;
-                        });
+                        startDate = getDayStart(now);
+                        endDate = getDayEnd(now);
                         break;
-
                     case 'yesterday':
                         const yesterday = new Date(now);
                         yesterday.setDate(yesterday.getDate() - 1);
-                        const yesterdayStart = new Date(yesterday);
-                        yesterdayStart.setHours(0, 0, 0, 0);
-                        const yesterdayEnd = new Date(yesterday);
-                        yesterdayEnd.setHours(23, 59, 59, 999);
-
-                        filteredEntries = entries.filter(entry => {
-                            const entryDate = new Date(entry.timestamp);
-                            return entryDate >= yesterdayStart && entryDate <= yesterdayEnd;
-                        });
+                        startDate = getDayStart(yesterday);
+                        endDate = getDayEnd(yesterday);
                         break;
-
                     case 'week':
-                        const weekStart = new Date(now);
-                        weekStart.setDate(weekStart.getDate() - 7);
-                        weekStart.setHours(0, 0, 0, 0);
-
-                        filteredEntries = entries.filter(entry => {
-                            const entryDate = new Date(entry.timestamp);
-                            return entryDate >= weekStart;
-                        });
+                        startDate = new Date(now);
+                        startDate.setDate(startDate.getDate() - 7);
+                        startDate.setHours(0, 0, 0, 0);
+                        endDate = getDayEnd(now);
                         break;
-
                     default:
-                        filteredEntries = entries;
+                        startDate = new Date(0);
+                        endDate = new Date();
                 }
 
-                return filteredEntries;
+                // Filtrer les entrées normales (biberon, couche)
+                const filteredEntries = entries.filter(entry => {
+                    const entryDate = new Date(entry.timestamp);
+                    return entryDate >= startDate && entryDate <= endDate;
+                });
+
+                // Filtrer les sessions de sommeil terminées
+                const filteredSleep = sleepSessions.filter(session => {
+                    if (!session.startTime || session.status !== 'completed') return false;
+                    const sessionDate = new Date(session.startTime);
+                    return sessionDate >= startDate && sessionDate <= endDate;
+                }).map(session => ({
+                    ...session,
+                    type: 'sleep',
+                    timestamp: session.startTime
+                }));
+
+                console.log('Sessions de sommeil filtrées:', filteredSleep); // Debug
+                console.log('Entrées normales:', filteredEntries.length);
+                console.log('Sessions sommeil:', filteredSleep.length);
+                console.log('Total combiné:', [...filteredEntries, ...filteredSleep].length);
+
+                return [...filteredEntries, ...filteredSleep].sort((a, b) =>
+                    new Date(b.timestamp) - new Date(a.timestamp)
+                );
+                // Combiner et trier par timestamp (plus récent en premier)
+                return [...filteredEntries, ...filteredSleep].sort((a, b) =>
+                    new Date(b.timestamp) - new Date(a.timestamp)
+                );
             };
             // Vérification connexion au chargement
             useEffect(() => {
@@ -1379,6 +1500,31 @@
                         });
                         setWardrobe(wardrobeData);
                     });
+
+                // Écoute du sommeil filtré par famille
+                const sleepUnsubscribe = db.collection('sleep_sessions')
+                    .where('familyCode', '==', familyCode)
+                    .onSnapshot((snapshot) => {
+                        const sleepData = [];
+                        let ongoingSession = null;
+
+                        snapshot.forEach((doc) => {
+                            const sessionData = { id: doc.id, ...doc.data() };
+                            sleepData.push(sessionData);
+
+                            if (sessionData.status === 'ongoing') {
+                                ongoingSession = sessionData;
+                            }
+                        });
+
+                        // Trier côté client
+                        sleepData.sort((a, b) => new Date(b.timestamp || b.startTime) - new Date(a.timestamp || a.startTime));
+
+                        console.log('Sessions chargées depuis Firebase:', sleepData);
+                        setSleepSessions(sleepData);
+                        setCurrentSleep(ongoingSession);
+                    });
+                unsubscribers.push(sleepUnsubscribe);
                 unsubscribers.push(wardrobeUnsubscribe);
                 return () => {
                     unsubscribers.forEach(unsubscribe => unsubscribe());
@@ -1386,10 +1532,16 @@
             }, [user]);
             // Mise à jour du graphique
             useEffect(() => {
-                if (currentView === 'daily' && periodView === 'daily' && chartRef.current && entries.length > 0) {
-                    updateDailyChart();
+                if (currentView === 'daily' && chartRef.current && entries.length > 0) {
+                    updateChart();
                 }
             }, [entries, currentView, periodView]);
+            // Mise à jour du graphique sommeil
+            useEffect(() => {
+                if (currentView === 'sleep-tracker' && sleepChartRef.current && sleepSessions.length > 0) {
+                    updateSleepChart();
+                }
+            }, [sleepSessions, currentView, sleepPeriodView]);
             // Fermer le menu "Plus" quand on clique ailleurs
             useEffect(() => {
                 const handleClickOutside = (event) => {
@@ -1430,14 +1582,13 @@
 
             // Charger les soins depuis Firebase
             // Charger les soins depuis Firebase
-            // Charger les soins depuis Firebase
             useEffect(() => {
                 if (!user) return;
 
                 const today = getCurrentDate();
 
                 // Écouter les changements en temps réel
-                const unsubscribe = db.collection('dailyCare')
+                const unsubscribe = db.collection('daily_care')
                     .doc(`${user.code}_${today}`)
                     .onSnapshot(async (doc) => {
                         if (doc.exists) {
@@ -1453,12 +1604,12 @@
                                 const freshCare = {
                                     cordon: {
                                         active: data.care?.cordon?.active ?? true,
-                                        morningDone: false,
-                                        eveningDone: false,
-                                        lastDate: null
+                                        morning_done: false,
+                                        evening_done: false,
+                                        last_updated: null
                                     },
-                                    visage: { done: false, lastDate: null },
-                                    vitamines: { done: false, lastDate: null }
+                                    visage: { done: false, last_updated: null },
+                                    vitamines: { done: false, last_updated: null }
                                 };
                                 setDailyCare(freshCare);
                                 await saveDailyCareToFirebase(freshCare, today);
@@ -1469,12 +1620,12 @@
                             const initialCare = {
                                 cordon: {
                                     active: true,
-                                    morningDone: false,
-                                    eveningDone: false,
-                                    lastDate: null
+                                    morning_done: false,
+                                    evening_done: false,
+                                    last_updated: null
                                 },
-                                visage: { done: false, lastDate: null },
-                                vitamines: { done: false, lastDate: null }
+                                visage: { done: false, last_updated: null },
+                                vitamines: { done: false, last_updated: null }
                             };
                             setDailyCare(initialCare);
                             await saveDailyCareToFirebase(initialCare, today);
@@ -1485,7 +1636,6 @@
 
                 return () => unsubscribe();
             }, [user]);
-
             // Initialiser les notifications
             useEffect(() => {
                 if ('Notification' in window) {
@@ -1997,6 +2147,110 @@
                     console.error('Erreur suppression garde-robe:', error);
                 }
             };
+
+            // Gestion du sommeil
+            const startSleep = async () => {
+                const now = new Date().toISOString();
+                const sleepSession = {
+                    familyCode: user.code,
+                    startTime: now,
+                    endTime: null,
+                    duration: null,
+                    timestamp: now,
+                    status: 'ongoing'
+                };
+
+                try {
+                    const docRef = await db.collection('sleep_sessions').add(sleepSession);
+                    console.log('Session créée avec ID:', docRef.id);
+                    console.log('Données envoyées:', sleepSession); // Debug
+                    setCurrentSleep({ id: docRef.id, ...sleepSession });
+                } catch (error) {
+                    console.error('Erreur démarrage sommeil:', error);
+                    alert('Erreur lors du démarrage');
+                }
+            };
+            const stopSleep = async () => {
+                if (!currentSleep) return;
+
+                const now = new Date().toISOString();
+                const startTime = new Date(currentSleep.startTime);
+                const endTime = new Date(now);
+                const durationMs = endTime - startTime;
+                const durationMinutes = Math.max(1, Math.floor(durationMs / (1000 * 60)));
+
+                const updatedSession = {
+                    endTime: now,
+                    duration: durationMinutes,
+                    status: 'completed',
+                    timestamp: now // Mettre à jour le timestamp
+                };
+
+                try {
+                    await db.collection('sleep_sessions').doc(currentSleep.id).update(updatedSession);
+                    console.log('Session terminée:', durationMinutes, 'minutes');
+                    setCurrentSleep(null);
+                } catch (error) {
+                    console.error('Erreur arrêt sommeil:', error);
+                    alert('Erreur lors de l\'arrêt');
+                }
+            };
+            const saveSleepEdit = async () => {
+                const { startTime, endTime, date } = sleepData;
+
+                if (!startTime || !endTime || !date) {
+                    alert('Veuillez remplir tous les champs');
+                    return;
+                }
+
+                const start = new Date(`${date}T${startTime}:00`);
+                const end = new Date(`${date}T${endTime}:00`);
+
+                if (end <= start) {
+                    alert('L\'heure de fin doit être après l\'heure de début');
+                    return;
+                }
+
+                const durationMs = end - start;
+                const durationMinutes = Math.floor(durationMs / (1000 * 60));
+
+                const sleepSession = {
+                    familyCode: user.code,
+                    startTime: start.toISOString(),
+                    endTime: end.toISOString(),
+                    duration: durationMinutes,
+                    timestamp: start.toISOString(),
+                    status: 'completed'
+                };
+
+                try {
+                    if (editingSleepId) {
+                        await db.collection('sleep_sessions').doc(editingSleepId).update(sleepSession);
+                    } else {
+                        await db.collection('sleep_sessions').add(sleepSession);
+                    }
+
+                    setSleepData({ startTime: '', endTime: '', date: getCurrentDate() });
+                    setEditingSleepId(null);
+                    setCurrentView('daily');
+                } catch (error) {
+                    console.error('Erreur sauvegarde sommeil:', error);
+                    alert('Erreur lors de la sauvegarde');
+                }
+            };
+            const formatSleepDuration = (minutes) => {
+                const hours = Math.floor(minutes / 60);
+                const mins = minutes % 60;
+                return hours > 0 ? `${hours}h${mins.toString().padStart(2, '0')}` : `${mins}min`;
+            };
+
+            const getSleepRecommendations = (ageInDays) => {
+                if (ageInDays <= 90) return SLEEP_GUIDE["0-3"];
+                else if (ageInDays <= 180) return SLEEP_GUIDE["3-6"];
+                else if (ageInDays <= 365) return SLEEP_GUIDE["6-12"];
+                else return SLEEP_GUIDE["12-36"];
+            };
+
             const editWardrobeItem = (itemId) => {
                 const item = wardrobe.find(w => w.id === itemId);
                 if (!item) return;
@@ -2011,6 +2265,32 @@
                 setCurrentView('wardrobe-form');
             };
 
+            const editSleepSession = (sessionId) => {
+                const session = sleepSessions.find(s => s.id === sessionId);
+                if (!session) return;
+
+                const startDate = new Date(session.startTime);
+                const endDate = new Date(session.endTime);
+
+                setSleepData({
+                    startTime: startDate.toTimeString().slice(0, 5),
+                    endTime: endDate.toTimeString().slice(0, 5),
+                    date: startDate.toISOString().slice(0, 10)
+                });
+                setEditingSleepId(sessionId);
+                setCurrentView('sleep-manual');
+            };
+
+            const deleteSleepSession = async (sessionId) => {
+                if (!confirm('Supprimer cette session de sommeil ?')) return;
+
+                try {
+                    await db.collection('sleep_sessions').doc(sessionId).delete();
+                } catch (error) {
+                    console.error('Erreur suppression session:', error);
+                    alert('Erreur lors de la suppression');
+                }
+            };
             // Gestion des soins quotidiens
             const checkCareStatus = () => {
                 const today = getCurrentDate();
@@ -2043,12 +2323,13 @@
                 if (!user) return;
 
                 try {
-                    await db.collection('dailyCare').doc(`${user.code}_${date}`).set({
+                    const docId = `${user.code}_${date}`;
+                    await db.collection('daily_care').doc(docId).set({
                         familyCode: user.code,
                         date: date,
                         care: careData,
                         timestamp: new Date().toISOString()
-                    }, { merge: true }); // Utiliser merge pour éviter d'écraser
+                    });
 
                     console.log('Soins sauvegardés:', careData);
                 } catch (error) {
@@ -2057,65 +2338,61 @@
             };
             const toggleCare = async (careType, timeOfDay = null) => {
                 const today = getCurrentDate();
+                const now = new Date().toISOString();
                 let updatedCare = { ...dailyCare };
 
                 if (careType === 'cordon' && timeOfDay) {
-                    // Gestion spécifique pour le cordon (matin/soir)
-                    const currentValue = updatedCare.cordon[timeOfDay === 'morning' ? 'morningDone' : 'eveningDone'];
+                    const field = timeOfDay === 'morning' ? 'morning_done' : 'evening_done';
+                    const currentValue = updatedCare.cordon[field];
+
                     updatedCare.cordon = {
                         ...updatedCare.cordon,
-                        [timeOfDay === 'morning' ? 'morningDone' : 'eveningDone']: !currentValue,
-                        lastDate: today
+                        [field]: !currentValue,
+                        last_updated: now
                     };
-                    console.log(`Toggle cordon ${timeOfDay}: ${!currentValue}`);
                 } else if (careType !== 'cordon') {
-                    // Gestion normale pour visage et vitamines
                     const newStatus = !dailyCare[careType].done;
                     updatedCare[careType] = {
                         done: newStatus,
-                        lastDate: newStatus ? today : null
+                        last_updated: newStatus ? now : null
                     };
-                    console.log(`Toggle ${careType}: ${newStatus}`);
                 }
 
-                console.log('Nouvel état des soins:', updatedCare);
                 setDailyCare(updatedCare);
-
-                // Sauvegarder dans Firebase
                 await saveDailyCareToFirebase(updatedCare, today);
             };
             const toggleCordonActive = async () => {
                 const today = getCurrentDate();
+                const now = new Date().toISOString();
+
                 const updatedCare = {
                     ...dailyCare,
                     cordon: {
-                        ...dailyCare.cordon,
                         active: !dailyCare.cordon.active,
-                        morningDone: false,
-                        eveningDone: false,
-                        lastDate: today
+                        morning_done: false,
+                        evening_done: false,
+                        last_updated: now
                     }
                 };
 
                 setDailyCare(updatedCare);
-
-                // Sauvegarder dans Firebase
                 await saveDailyCareToFirebase(updatedCare, today);
             };
             const getCareReminders = () => {
+                if (!dailyCare) return [];
+
                 const today = getCurrentDate();
                 const reminders = [];
 
                 // Cordon (si actif et pas fait 2 fois)
                 if (dailyCare.cordon.active &&
-                    (!dailyCare.cordon.morningDone || !dailyCare.cordon.eveningDone ||
-                        dailyCare.cordon.lastDate !== today)) {
+                    (!dailyCare.cordon.morning_done || !dailyCare.cordon.evening_done)) {
                     reminders.push('Soin du cordon');
                 }
 
                 // Autres soins
                 ['visage', 'vitamines'].forEach(careType => {
-                    if (!dailyCare[careType].done || dailyCare[careType].lastDate !== today) {
+                    if (!dailyCare[careType].done) {
                         const careNames = {
                             visage: 'Nettoyage du visage',
                             vitamines: 'Vitamines'
@@ -2127,7 +2404,7 @@
                 return reminders;
             };
             // Graphique quotidien
-            const updateDailyChart = () => {
+            const updateChart = () => {
                 if (!chartRef.current) return;
 
                 const ctx = chartRef.current.getContext('2d');
@@ -2137,47 +2414,135 @@
                 }
 
                 const now = new Date();
-                const dayStart = getDayStart(now);
-                const dayEnd = getDayEnd(now);
+                let startDate, endDate, filteredFeedings, labels, data, labelFormat;
 
-                const todayFeedings = entries.filter(entry => {
-                    const entryDate = new Date(entry.timestamp);
-                    return entry.type === 'feeding' && entryDate >= dayStart && entryDate <= dayEnd;
-                });
+                // Configuration selon la période
+                switch (periodView) {
+                    case 'daily':
+                        startDate = getDayStart(now);
+                        endDate = getDayEnd(now);
 
-                const hourLabels = [];
-                const data = [];
+                        filteredFeedings = entries.filter(entry => {
+                            const entryDate = new Date(entry.timestamp);
+                            return entry.type === 'feeding' && entryDate >= startDate && entryDate <= endDate;
+                        });
 
-                // Générer les labels et données pour 24h (0h à 23h)
-                for (let h = 0; h < 24; h++) {
-                    const hourStr = `${h}h`;
-                    hourLabels.push(hourStr);
+                        // Labels par heure pour la vue quotidienne
+                        labels = [];
+                        data = [];
+                        for (let h = 0; h < 24; h++) {
+                            const hourStr = `${h}h`;
+                            labels.push(hourStr);
 
-                    let cumulativeMilk = 0;
-                    const currentTime = new Date(dayStart);
-                    currentTime.setHours(h, 59, 59, 999); // Fin de l'heure pour calcul cumulatif
+                            let cumulativeMilk = 0;
+                            const currentTime = new Date(startDate);
+                            currentTime.setHours(h, 59, 59, 999);
 
-                    todayFeedings.forEach(feeding => {
-                        const feedingTime = new Date(feeding.timestamp);
-                        if (feedingTime <= currentTime) {
-                            cumulativeMilk += parseInt(feeding.amount || 0);
+                            filteredFeedings.forEach(feeding => {
+                                const feedingTime = new Date(feeding.timestamp);
+                                if (feedingTime <= currentTime) {
+                                    cumulativeMilk += parseInt(feeding.amount || 0);
+                                }
+                            });
+
+                            data.push(cumulativeMilk);
                         }
-                    });
+                        labelFormat = 'Lait cumulé par heure';
+                        break;
 
-                    data.push(cumulativeMilk);
+                    case 'weekly':
+                        startDate = new Date(now);
+                        startDate.setDate(startDate.getDate() - 6);
+                        startDate.setHours(0, 0, 0, 0);
+                        endDate = getDayEnd(now);
+
+                        filteredFeedings = entries.filter(entry => {
+                            const entryDate = new Date(entry.timestamp);
+                            return entry.type === 'feeding' && entryDate >= startDate && entryDate <= endDate;
+                        });
+
+                        // Labels par jour pour la vue hebdomadaire
+                        labels = [];
+                        data = [];
+                        for (let d = 0; d < 7; d++) {
+                            const currentDay = new Date(startDate);
+                            currentDay.setDate(startDate.getDate() + d);
+
+                            const dayStart = getDayStart(currentDay);
+                            const dayEnd = getDayEnd(currentDay);
+
+                            const dayLabel = currentDay.toLocaleDateString('fr-FR', {
+                                weekday: 'short',
+                                day: 'numeric'
+                            });
+                            labels.push(dayLabel);
+
+                            const dayTotal = filteredFeedings
+                                .filter(feeding => {
+                                    const feedingTime = new Date(feeding.timestamp);
+                                    return feedingTime >= dayStart && feedingTime <= dayEnd;
+                                })
+                                .reduce((sum, feeding) => sum + parseInt(feeding.amount || 0), 0);
+
+                            data.push(dayTotal);
+                        }
+                        labelFormat = 'Lait total par jour';
+                        break;
+
+                    case 'monthly':
+                        startDate = new Date(now);
+                        startDate.setDate(startDate.getDate() - 29);
+                        startDate.setHours(0, 0, 0, 0);
+                        endDate = getDayEnd(now);
+
+                        filteredFeedings = entries.filter(entry => {
+                            const entryDate = new Date(entry.timestamp);
+                            return entry.type === 'feeding' && entryDate >= startDate && entryDate <= endDate;
+                        });
+
+                        // Labels par semaine pour la vue mensuelle
+                        labels = [];
+                        data = [];
+                        for (let w = 0; w < 4; w++) {
+                            const weekStart = new Date(startDate);
+                            weekStart.setDate(startDate.getDate() + (w * 7));
+                            const weekEnd = new Date(weekStart);
+                            weekEnd.setDate(weekStart.getDate() + 6);
+                            weekEnd.setHours(23, 59, 59, 999);
+
+                            const weekLabel = `S${w + 1}`;
+                            labels.push(weekLabel);
+
+                            const weekTotal = filteredFeedings
+                                .filter(feeding => {
+                                    const feedingTime = new Date(feeding.timestamp);
+                                    return feedingTime >= weekStart && feedingTime <= weekEnd;
+                                })
+                                .reduce((sum, feeding) => sum + parseInt(feeding.amount || 0), 0);
+
+                            data.push(weekTotal);
+                        }
+                        labelFormat = 'Lait total par semaine';
+                        break;
+
+                    default:
+                        return;
                 }
 
                 chartInstance.current = new Chart(ctx, {
                     type: 'line',
                     data: {
-                        labels: hourLabels,
+                        labels: labels,
                         datasets: [{
-                            label: 'Lait (ml)',
+                            label: labelFormat,
                             data: data,
                             borderColor: user?.gender === 'girl' ? '#ec4899' : '#3B82F6',
                             backgroundColor: user?.gender === 'girl' ? 'rgba(236, 72, 153, 0.1)' : 'rgba(59, 130, 246, 0.1)',
                             tension: 0.4,
-                            fill: true
+                            fill: true,
+                            pointBackgroundColor: user?.gender === 'girl' ? '#ec4899' : '#3B82F6',
+                            pointRadius: periodView === 'daily' ? 2 : 4,
+                            pointHoverRadius: 6
                         }]
                     },
                     options: {
@@ -2186,14 +2551,170 @@
                         scales: {
                             y: {
                                 beginAtZero: true,
-                                ticks: { fontSize: 10 }
+                                ticks: {
+                                    fontSize: 10,
+                                    callback: function (value) {
+                                        return value + 'ml';
+                                    }
+                                },
+                                title: {
+                                    display: true,
+                                    text: 'Volume (ml)'
+                                }
                             },
                             x: {
-                                ticks: { fontSize: 10 }
+                                ticks: { fontSize: 10 },
+                                title: {
+                                    display: true,
+                                    text: periodView === 'daily' ? 'Heures' :
+                                        periodView === 'weekly' ? 'Jours' : 'Semaines'
+                                }
                             }
                         },
                         plugins: {
-                            legend: { display: false }
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        return `${context.parsed.y}ml`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            };
+            const updateSleepChart = () => {
+                if (!sleepChartRef.current) return;
+
+                const ctx = sleepChartRef.current.getContext('2d');
+
+                if (sleepChartInstance.current) {
+                    sleepChartInstance.current.destroy();
+                }
+
+                const now = new Date();
+                let startDate, endDate, filteredSleep, labels, data;
+
+                switch (sleepPeriodView) {
+                    case 'week':
+                        startDate = new Date(now);
+                        startDate.setDate(startDate.getDate() - 6);
+                        startDate.setHours(0, 0, 0, 0);
+                        endDate = getDayEnd(now);
+
+                        filteredSleep = sleepSessions.filter(session => {
+                            const sessionDate = new Date(session.startTime);
+                            return session.status === 'completed' &&
+                                sessionDate >= startDate && sessionDate <= endDate;
+                        });
+
+                        // Par jour
+                        labels = [];
+                        data = [];
+                        for (let d = 0; d < 7; d++) {
+                            const currentDay = new Date(startDate);
+                            currentDay.setDate(startDate.getDate() + d);
+
+                            const dayStart = getDayStart(currentDay);
+                            const dayEnd = getDayEnd(currentDay);
+
+                            const dayLabel = currentDay.toLocaleDateString('fr-FR', {
+                                weekday: 'short',
+                                day: 'numeric'
+                            });
+                            labels.push(dayLabel);
+
+                            const dayTotal = filteredSleep
+                                .filter(session => {
+                                    const sessionTime = new Date(session.startTime);
+                                    return sessionTime >= dayStart && sessionTime <= dayEnd;
+                                })
+                                .reduce((sum, session) => sum + (session.duration || 0), 0);
+
+                            data.push(Math.round(dayTotal / 60 * 10) / 10); // Convertir en heures
+                        }
+                        break;
+
+                    case 'month':
+                        startDate = new Date(now);
+                        startDate.setDate(startDate.getDate() - 29);
+                        startDate.setHours(0, 0, 0, 0);
+                        endDate = getDayEnd(now);
+
+                        filteredSleep = sleepSessions.filter(session => {
+                            const sessionDate = new Date(session.startTime);
+                            return session.status === 'completed' &&
+                                sessionDate >= startDate && sessionDate <= endDate;
+                        });
+
+                        // Par semaine
+                        labels = [];
+                        data = [];
+                        for (let w = 0; w < 4; w++) {
+                            const weekStart = new Date(startDate);
+                            weekStart.setDate(startDate.getDate() + (w * 7));
+                            const weekEnd = new Date(weekStart);
+                            weekEnd.setDate(weekStart.getDate() + 6);
+                            weekEnd.setHours(23, 59, 59, 999);
+
+                            labels.push(`S${w + 1}`);
+
+                            const weekTotal = filteredSleep
+                                .filter(session => {
+                                    const sessionTime = new Date(session.startTime);
+                                    return sessionTime >= weekStart && sessionTime <= weekEnd;
+                                })
+                                .reduce((sum, session) => sum + (session.duration || 0), 0);
+
+                            data.push(Math.round(weekTotal / 60 * 10) / 10); // Convertir en heures
+                        }
+                        break;
+                }
+
+                sleepChartInstance.current = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Sommeil (heures)',
+                            data: data,
+                            backgroundColor: 'rgba(147, 51, 234, 0.6)',
+                            borderColor: 'rgba(147, 51, 234, 1)',
+                            borderWidth: 2,
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    fontSize: 8,
+                                    callback: function (value) {
+                                        return value + 'h';
+                                    }
+                                }
+                            },
+                            x: {
+                                ticks: { fontSize: 8 }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function (context) {
+                                        const hours = Math.floor(context.parsed.y);
+                                        const minutes = Math.round((context.parsed.y - hours) * 60);
+                                        return `${hours}h${minutes.toString().padStart(2, '0')}`;
+                                    }
+                                }
+                            }
                         }
                     }
                 });
@@ -2519,11 +3040,13 @@
                 }
             };
 
+
             // Calculer les recommandations alimentaires
             const age = calculateAge();
             const recommendations = getFeedingRecommendations(age);
             const nextFeedingInfo = calculateNextFeeding();
             const themeColors = getThemeColors();
+
             // Rendu conditionnel - Écran d'authentification
             if (showAuth) {
                 return (
@@ -2648,8 +3171,10 @@
                     <span>{label}</span>
                 </button>
             );
-            // Rendu principal
+
+
             return (
+
                 <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
                     <div className="max-w-md mx-auto p-4 pb-24">
 
@@ -2664,6 +3189,7 @@
                                         >
                                             <i className="fas fa-sign-out-alt text-xs text-gray-400"></i>
                                         </button>
+
                                     </div>
 
                                     <div className="flex items-center gap-3 mb-2">
@@ -2754,56 +3280,73 @@
                                             <h1 className="text-lg font-bold text-gray-900 mb-1">{user?.babyName}</h1>
                                             <div className="text-sm font-semibold text-gray-600">{formatAgeDisplay(age)}</div>
 
-                                            {/* Prochain biberon compact avec fond et 3 états */}
+                                            {/* Prochain biberon avec dernier en petit */}
                                             {nextFeedingInfo && (
                                                 <div className="mt-2">
                                                     {(() => {
                                                         const now = new Date();
-                                                        const timeSinceLastFeeding = now - new Date(nextFeedingInfo.lastFeeding);
-                                                        const minutesSinceLastFeeding = Math.floor(timeSinceLastFeeding / (1000 * 60));
+                                                        const lastFeedingTime = new Date(nextFeedingInfo.lastFeeding);
+                                                        const nextFeedingTime = new Date(nextFeedingInfo.nextTime);
 
-                                                        const timeDiff = nextFeedingInfo.nextTime - now;
-                                                        const minutesRemaining = Math.ceil(timeDiff / (1000 * 60));
+                                                        const minutesSinceLastFeeding = Math.floor((now - lastFeedingTime) / (1000 * 60));
+                                                        const minutesUntilNextFeeding = Math.ceil((nextFeedingTime - now) / (1000 * 60));
 
-                                                        let bgClass, textClass, message;
+                                                        // Formatage du temps écoulé
+                                                        const formatTime = (minutes) => {
+                                                            if (minutes < 0) return "0 min";
+                                                            if (minutes < 60) return `${minutes} min`;
+                                                            const hours = Math.floor(minutes / 60);
+                                                            const mins = minutes % 60;
+                                                            return mins > 0 ? `${hours}h${mins.toString().padStart(2, '0')}` : `${hours}h`;
+                                                        };
 
-                                                        // 3 états basés sur le temps écoulé depuis le dernier biberon
-                                                        if (minutesSinceLastFeeding <= 60) {
-                                                            // Récent (moins d'1h)
-                                                            bgClass = 'bg-green-500';
+                                                        // Formatage de l'heure exacte
+                                                        const formatExactTime = (date) => {
+                                                            return date.toLocaleTimeString('fr-FR', {
+                                                                hour: '2-digit',
+                                                                minute: '2-digit'
+                                                            });
+                                                        };
+
+                                                        let bgClass, textClass, emoji, mainMessage;
+
+                                                        if (minutesUntilNextFeeding <= 0) {
+                                                            // C'est l'heure ou en retard
+                                                            bgClass = 'bg-gradient-to-r from-red-500 to-red-600';
                                                             textClass = 'text-white';
-                                                            if (minutesRemaining <= 0) {
-                                                                message = '🍼 C\'est l\'heure !';
-                                                            } else {
-                                                                const hoursRemaining = Math.floor(minutesRemaining / 60);
-                                                                const minsRemaining = minutesRemaining % 60;
-                                                                const timeText = hoursRemaining > 0 ? `${hoursRemaining}h${minsRemaining > 0 ? `${minsRemaining.toString().padStart(2, '0')}` : ''}` : `${minsRemaining} min`;
-                                                                message = `🍼Prochain dans ${timeText}`;
-                                                            }
-                                                        } else if (minutesSinceLastFeeding <= 180) {
-                                                            // Normal (1h-3h)
-                                                            bgClass = 'bg-blue-500';
+                                                            emoji = '🚨';
+                                                            mainMessage = 'C\'est l\'heure !';
+                                                        } else if (minutesUntilNextFeeding <= 30) {
+                                                            // Bientôt (dans moins de 30 min)
+                                                            bgClass = 'bg-gradient-to-r from-orange-500 to-orange-600';
                                                             textClass = 'text-white';
-                                                            if (minutesRemaining <= 0) {
-                                                                message = '🍼 C\'est l\'heure !';
-                                                            } else if (minutesRemaining <= 30) {
-                                                                message = `🍼 Dans ${minutesRemaining} min`;
-                                                            } else {
-                                                                const hoursRemaining = Math.floor(minutesRemaining / 60);
-                                                                const minsRemaining = minutesRemaining % 60;
-                                                                const timeText = hoursRemaining > 0 ? `${hoursRemaining}h${minsRemaining > 0 ? `${minsRemaining.toString().padStart(2, '0')}` : ''}` : `${minsRemaining} min`;
-                                                                message = `🍼 Prochain dans ${timeText}`;
-                                                            }
+                                                            emoji = '⏰';
+                                                            mainMessage = `Prochain biberon à ${formatExactTime(nextFeedingTime)}`;
+                                                        } else if (minutesUntilNextFeeding <= 120) {
+                                                            // Normal (30min - 2h)
+                                                            bgClass = 'bg-gradient-to-r from-blue-500 to-blue-600';
+                                                            textClass = 'text-white';
+                                                            emoji = '🍼';
+                                                            mainMessage = `Prochain biberon à ${formatExactTime(nextFeedingTime)}`;
                                                         } else {
-                                                            // Tardif (plus de 3h)
-                                                            bgClass = 'bg-orange-500';
+                                                            // Loin (plus de 2h)
+                                                            bgClass = 'bg-gradient-to-r from-green-500 to-green-600';
                                                             textClass = 'text-white';
-                                                            message = '🍼 Biberon attendu !';
+                                                            emoji = '😴';
+                                                            mainMessage = `Prochain biberon à ${formatExactTime(nextFeedingTime)}`;
                                                         }
 
                                                         return (
-                                                            <div className={`${bgClass} ${textClass} px-2 py-1 rounded-lg text-xs font-medium`}>
-                                                                {message}
+                                                            <div className={`${bgClass} ${textClass} px-3 py-2 rounded-xl text-xs font-medium shadow-lg`}>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-sm">{emoji}</span>
+                                                                    <div className="flex-1">
+                                                                        <div className="font-bold">{mainMessage}</div>
+                                                                        <div className="text-xs opacity-80">
+                                                                            Dernier à {formatExactTime(lastFeedingTime)}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
                                                             </div>
                                                         );
                                                     })()}
@@ -2847,21 +3390,88 @@
 
                                     {/* Calcul personnalisé intégré plus compact */}
                                     {currentWeight && periodView === 'daily' && (
-                                        <div className="mt-2 bg-green-50 rounded-lg p-2">
+                                        <div className="mt-2 bg-green-50 rounded-lg p-2 border border-green-200">
                                             <div className="flex items-center justify-between mb-1">
                                                 <span className="text-xs font-medium text-green-700">Calcul personnalisé</span>
                                                 <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full font-bold">PRÉCIS</span>
                                             </div>
+
                                             {(() => {
                                                 const calculation = calculateMilkByWeight(currentWeight, age);
                                                 return calculation ? (
-                                                    <div className="text-xs text-green-700">
-                                                        {calculation.mlPerFeeding}ml × {calculation.feedingsPerDay} = {calculation.totalPerDay}ml/jour
+                                                    <div className="space-y-1">
+                                                        <div className="text-xs font-semibold text-green-800">
+                                                            {calculation.mlPerFeeding}ml × {calculation.feedingsPerDay} = {calculation.totalPerDay}ml/jour
+                                                        </div>
+
+                                                        <div className="text-xs text-gray-500">
+                                                            Ses chiffres sont une estimation en cas de doute consultez votre pédiatre.
+                                                        </div>
+
+                                                        <div className="flex items-center gap-1 text-xs text-blue-700 bg-blue-50 rounded px-2 py-1">
+                                                            <span>💡</span>
+                                                            <span>Encore faim avant 2h ? +10ml possible</span>
+                                                        </div>
                                                     </div>
                                                 ) : null;
                                             })()}
                                         </div>
                                     )}
+                                </div>
+                            </div>
+                        )}
+                        {/* Menu d'export */}
+                        {showExportMenu && (
+                            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                                <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="text-lg font-bold text-gray-900">Export des données</h3>
+                                        <button
+                                            onClick={() => setShowExportMenu(false)}
+                                            className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center"
+                                        >
+                                            <i className="fas fa-times text-gray-600"></i>
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Période</label>
+                                            <select
+                                                className="w-full px-3 py-2 border rounded-xl"
+                                                value={exportPeriod}
+                                                onChange={(e) => setExportPeriod(e.target.value)}
+                                            >
+                                                <option value="day">Aujourd'hui</option>
+                                                <option value="week">7 derniers jours</option>
+                                                <option value="month">30 derniers jours</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button
+                                                onClick={exportToCSV}
+                                                disabled={isExporting}
+                                                className="bg-green-500 text-white py-3 rounded-xl font-medium disabled:opacity-50"
+                                            >
+                                                {isExporting ? 'Export...' : 'CSV'}
+                                            </button>
+                                            <button
+                                                onClick={exportToPDF}
+                                                disabled={isExporting}
+                                                className="bg-blue-500 text-white py-3 rounded-xl font-medium disabled:opacity-50"
+                                            >
+                                                {isExporting ? 'Export...' : 'PDF'}
+                                            </button>
+                                        </div>
+
+                                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                                            <p className="text-xs text-yellow-800">
+                                                <i className="fas fa-info-circle mr-1"></i>
+                                                Ces exports sont parfaits à partager avec votre pédiatre lors des consultations.
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -2929,6 +3539,18 @@
                                                         <i className="fas fa-baby text-green-600"></i>
                                                     </div>
                                                     <span className="font-medium">Couche</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setCurrentView('sleep-tracker');
+                                                        setShowPlusMenu(false);
+                                                    }}
+                                                    className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-xl"
+                                                >
+                                                    <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+                                                        <i className="fas fa-moon text-purple-600"></i>
+                                                    </div>
+                                                    <span className="font-medium">Sommeil</span>
                                                 </button>
                                             </div>
                                         )}
@@ -3211,7 +3833,11 @@
                                                         <span className="text-sm">📊</span>
                                                     </div>
                                                     <div>
-                                                        <h4 className="font-bold text-gray-900">Évolution quotidienne</h4>
+                                                        <h4 className="font-bold text-gray-900">
+                                                            {periodView === 'daily' ? 'Évolution quotidienne' :
+                                                                periodView === 'weekly' ? 'Évolution sur 7 jours' :
+                                                                    'Évolution sur 30 jours'}
+                                                        </h4>
                                                         <p className="text-xs text-gray-500">Lait consommé par heure</p>
                                                     </div>
                                                 </div>
@@ -3336,19 +3962,93 @@
 
                                     <div className="space-y-3">
                                         {(() => {
-                                            const filteredEntries = getFilteredHistory();
+                                            const combinedEntries = getFilteredHistory();
                                             const itemsPerPage = 10;
                                             const startIndex = currentPage * itemsPerPage;
                                             const endIndex = startIndex + itemsPerPage;
-                                            const currentEntries = filteredEntries.slice(startIndex, endIndex);
-                                            const totalPages = Math.ceil(filteredEntries.length / itemsPerPage);
-
+                                            const currentEntries = combinedEntries.slice(startIndex, endIndex);
+                                            const totalPages = Math.ceil(combinedEntries.length / itemsPerPage);
                                             return (
                                                 <>
                                                     {currentEntries.length === 0 ? (
                                                         <p className="text-gray-500 text-center py-8">Aucune entrée pour cette période</p>
                                                     ) : (
                                                         currentEntries.map((entry) => {
+                                                            // Rendu spécial pour les sessions de sommeil
+                                                            if (entry.type === 'sleep') {
+                                                                return (
+                                                                    <div key={entry.id} className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-xl border border-white/20 overflow-hidden">
+                                                                        {/* Barre de couleur latérale violette */}
+                                                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-purple-500 to-purple-600" />
+
+                                                                        <div className="p-5 pl-6 relative">
+                                                                            <div className="flex items-start justify-between mb-4">
+                                                                                <div className="flex items-center gap-4 flex-1">
+                                                                                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-purple-100 border-2 border-purple-200">
+                                                                                        <i className="fas fa-moon text-purple-600 text-xl"></i>
+                                                                                    </div>
+
+                                                                                    <div className="flex-1 min-w-0">
+                                                                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                                                            <h4 className="font-bold text-gray-900 text-lg">Sommeil</h4>
+                                                                                            <div className="px-2 py-0.5 rounded-full text-xs font-medium border bg-purple-50 text-purple-700 border-purple-200">
+                                                                                                Repos
+                                                                                            </div>
+                                                                                        </div>
+
+                                                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                                                            <p className="text-sm font-medium text-gray-600">
+                                                                                                {formatDateTime(entry.startTime)}
+                                                                                            </p>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <div className="flex items-center gap-2 ml-2">
+                                                                                    <button
+                                                                                        onClick={() => editSleepSession(entry.id)}
+                                                                                        className="w-9 h-9 rounded-2xl bg-blue-50 flex items-center justify-center active:scale-95 transition-transform"
+                                                                                    >
+                                                                                        <i className="fas fa-edit text-sm text-blue-600"></i>
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => deleteSleepSession(entry.id)}
+                                                                                        className="w-9 h-9 rounded-2xl bg-red-50 flex items-center justify-center active:scale-95 transition-transform"
+                                                                                    >
+                                                                                        <i className="fas fa-trash text-sm text-red-600"></i>
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div className="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent mb-4 opacity-60"></div>
+
+                                                                            <div className="space-y-3">
+                                                                                <div className="flex items-center gap-3 flex-wrap">
+                                                                                    <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-purple-100 border border-purple-200">
+                                                                                        <i className="fas fa-clock text-sm opacity-70"></i>
+                                                                                        <span className="font-bold text-base">{formatSleepDuration(entry.duration)}</span>
+                                                                                    </div>
+
+                                                                                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 border border-purple-200">
+                                                                                        <span className="text-xs text-purple-700">
+                                                                                            {formatTime(entry.startTime)} → {formatTime(entry.endTime)}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+
+                                                                            <div className="mt-4 pt-3 border-t border-gray-100">
+                                                                                <div className="flex items-center justify-between text-xs text-gray-500">
+                                                                                    <span>#{entry.id.slice(-6)}</span>
+                                                                                    <span>Session de {formatSleepDuration(entry.duration)}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            }
+
+                                                            // Continuer avec le code existant pour biberon/couche...
                                                             let poopDisplay = '';
                                                             if (entry.hasPoop) {
                                                                 const poopInfo = getPoopInfo(entry.poopQuantity, entry.poopConsistency, entry.poopColor);
@@ -3637,113 +4337,118 @@
                                     </div>
 
                                     <div className="space-y-3">
-                                        {/* Soin du cordon */}
-                                        <div className={`p-3 rounded-xl border-2 ${!dailyCare.cordon.active
-                                            ? 'bg-gray-100 border-gray-300'
-                                            : (dailyCare.cordon.morningDone && dailyCare.cordon.eveningDone)
-                                                ? 'bg-green-50 border-green-200'
-                                                : 'bg-orange-50 border-orange-200'}`}>
-
-                                            <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-xl">
-                                                        {!dailyCare.cordon.active ? '⚪' :
-                                                            (dailyCare.cordon.morningDone && dailyCare.cordon.eveningDone) ? '✅' : '🩹'}
-                                                    </span>
-                                                    <div>
-                                                        <h4 className="font-medium text-gray-800">
-                                                            Soin du cordon
-                                                            {!dailyCare.cordon.active && <span className="text-sm text-gray-500">(Désactivé)</span>}
-                                                        </h4>
-                                                        <p className="text-xs text-gray-600">
-                                                            {dailyCare.cordon.active ? 'Nettoyage matin et soir' : 'Cordon tombé'}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
-                                                {/* Bouton pour désactiver/réactiver le cordon */}
-                                                <button
-                                                    onClick={toggleCordonActive}
-                                                    className={`text-xs px-2 py-1 rounded ${dailyCare.cordon.active
-                                                        ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                                                        : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
-                                                >
-                                                    {dailyCare.cordon.active ? 'Désactiver' : 'Réactiver'}
-                                                </button>
+                                        {!dailyCare ? (
+                                            <div className="text-center py-4">
+                                                <div className="animate-spin w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+                                                <p className="text-gray-500 text-sm">Chargement des soins...</p>
                                             </div>
+                                        ) : (
+                                            <>
+                                                {/* Soin du cordon */}
+                                                <div className={`p-3 rounded-xl border-2 ${!dailyCare.cordon.active
+                                                    ? 'bg-gray-100 border-gray-300'
+                                                    : (dailyCare.cordon.morning_done && dailyCare.cordon.evening_done)
+                                                        ? 'bg-green-50 border-green-200'
+                                                        : 'bg-orange-50 border-orange-200'}`}>
 
-                                            {/* Cases à cocher pour matin et soir (seulement si actif) */}
-                                            {dailyCare.cordon.active && (
-                                                <div className="flex gap-4">
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <div className="flex items-center gap-3">
+                                                            <span className="text-xl">
+                                                                {!dailyCare.cordon.active ? '⚪' :
+                                                                    (dailyCare.cordon.morning_done && dailyCare.cordon.evening_done) ? '✅' : '🩹'}
+                                                            </span>
+                                                            <div>
+                                                                <h4 className="font-medium text-gray-800">
+                                                                    Soin du cordon
+                                                                    {!dailyCare.cordon.active && <span className="text-sm text-gray-500">(Désactivé)</span>}
+                                                                </h4>
+                                                                <p className="text-xs text-gray-600">
+                                                                    {dailyCare.cordon.active ? 'Nettoyage matin et soir' : 'Cordon tombé'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
                                                         <button
-                                                            onClick={() => toggleCare('cordon', 'morning')}
-                                                            className={`w-5 h-5 rounded border-2 flex items-center justify-center ${dailyCare.cordon.morningDone
-                                                                ? 'bg-green-500 border-green-500'
-                                                                : 'border-gray-300 hover:border-green-400'}`}
+                                                            onClick={toggleCordonActive}
+                                                            className={`text-xs px-2 py-1 rounded ${dailyCare.cordon.active
+                                                                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                                                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
                                                         >
-                                                            {dailyCare.cordon.morningDone && <i className="fas fa-check text-white text-xs"></i>}
+                                                            {dailyCare.cordon.active ? 'Désactiver' : 'Réactiver'}
                                                         </button>
-                                                        <span className="text-sm text-gray-700">Matin</span>
                                                     </div>
 
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            onClick={() => toggleCare('cordon', 'evening')}
-                                                            className={`w-5 h-5 rounded border-2 flex items-center justify-center ${dailyCare.cordon.eveningDone
-                                                                ? 'bg-green-500 border-green-500'
-                                                                : 'border-gray-300 hover:border-green-400'}`}
-                                                        >
-                                                            {dailyCare.cordon.eveningDone && <i className="fas fa-check text-white text-xs"></i>}
-                                                        </button>
-                                                        <span className="text-sm text-gray-700">Soir</span>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                        {/* Nettoyage visage */}
-                                        <div className={`flex items-center justify-between p-3 rounded-xl border-2 ${dailyCare.visage.done
-                                            ? 'bg-green-50 border-green-200'
-                                            : 'bg-orange-50 border-orange-200'}`}>
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-xl">{dailyCare.visage.done ? '✅' : '🧼'}</span>
-                                                <div>
-                                                    <h4 className="font-medium text-gray-800">Nettoyage du visage</h4>
-                                                    <p className="text-xs text-gray-600">Yeux, nez, oreilles</p>
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={() => toggleCare('visage')}
-                                                className={`w-6 h-6 rounded border-2 flex items-center justify-center ${dailyCare.visage.done
-                                                    ? 'bg-green-500 border-green-500'
-                                                    : 'border-gray-300 hover:border-green-400'}`}
-                                            >
-                                                {dailyCare.visage.done && <i className="fas fa-check text-white text-xs"></i>}
-                                            </button>
-                                        </div>
+                                                    {dailyCare.cordon.active && (
+                                                        <div className="flex gap-4">
+                                                            <button
+                                                                onClick={() => toggleCare('cordon', 'morning')}
+                                                                className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${dailyCare.cordon.morning_done
+                                                                    ? 'bg-green-500 text-white'
+                                                                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                                                    }`}
+                                                            >
+                                                                {dailyCare.cordon.morning_done ? '✓ Fait' : 'Matin'}
+                                                            </button>
 
-                                        {/* Vitamines */}
-                                        <div className={`flex items-center justify-between p-3 rounded-xl border-2 ${dailyCare.vitamines.done
-                                            ? 'bg-green-50 border-green-200'
-                                            : 'bg-orange-50 border-orange-200'}`}>
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-xl">{dailyCare.vitamines.done ? '✅' : '💊'}</span>
-                                                <div>
-                                                    <h4 className="font-medium text-gray-800">Vitamines</h4>
-                                                    <p className="text-xs text-gray-600">Vitamine D, K si prescrites</p>
+                                                            <button
+                                                                onClick={() => toggleCare('cordon', 'evening')}
+                                                                className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${dailyCare.cordon.evening_done
+                                                                    ? 'bg-green-500 text-white'
+                                                                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                                                    }`}
+                                                            >
+                                                                {dailyCare.cordon.evening_done ? '✓ Fait' : 'Soir'}
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            </div>
-                                            <button
-                                                onClick={() => toggleCare('vitamines')}
-                                                className={`w-6 h-6 rounded border-2 flex items-center justify-center ${dailyCare.vitamines.done
-                                                    ? 'bg-green-500 border-green-500'
-                                                    : 'border-gray-300 hover:border-green-400'}`}
-                                            >
-                                                {dailyCare.vitamines.done && <i className="fas fa-check text-white text-xs"></i>}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
+
+                                                {/* Nettoyage visage */}
+                                                <div className={`flex items-center justify-between p-3 rounded-xl border-2 ${dailyCare.visage.done
+                                                    ? 'bg-green-50 border-green-200'
+                                                    : 'bg-orange-50 border-orange-200'}`}>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-xl">{dailyCare.visage.done ? '✅' : '🧼'}</span>
+                                                        <div>
+                                                            <h4 className="font-medium text-gray-800">Nettoyage du visage</h4>
+                                                            <p className="text-xs text-gray-600">Yeux, nez, oreilles</p>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => toggleCare('visage')}
+                                                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${dailyCare.visage.done
+                                                            ? 'bg-green-500 text-white'
+                                                            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                                            }`}
+                                                    >
+                                                        {dailyCare.visage.done ? '✓ Fait' : 'à faire'}
+                                                    </button>
+                                                </div>
+
+                                                {/* Vitamines */}
+                                                <div className={`flex items-center justify-between p-3 rounded-xl border-2 ${dailyCare.vitamines.done
+                                                    ? 'bg-green-50 border-green-200'
+                                                    : 'bg-orange-50 border-orange-200'}`}>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-xl">{dailyCare.vitamines.done ? '✅' : '💊'}</span>
+                                                        <div>
+                                                            <h4 className="font-medium text-gray-800">Vitamines</h4>
+                                                            <p className="text-xs text-gray-600">Vitamine D, K si prescrites</p>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => toggleCare('vitamines')}
+                                                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${dailyCare.vitamines.done
+                                                            ? 'bg-green-500 text-white'
+                                                            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                                            }`}
+                                                    >
+                                                        {dailyCare.vitamines.done ? '✓ Fait' : 'à faire'}
+                                                    </button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div></div>
 
                                 {/* Médicaments */}
                                 <div>
@@ -4108,7 +4813,8 @@
                                             </div>
 
                                             {/* Légumes */}
-                                            {diversification.vegetables && (
+                                            {/* Légumes */}
+                                            {diversification.legumes && diversification.legumes.length > 0 && (
                                                 <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/30">
                                                     <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
                                                         <div className="w-8 h-8 bg-green-100 rounded-xl flex items-center justify-center">
@@ -4117,15 +4823,14 @@
                                                         Légumes recommandés
                                                     </h4>
                                                     <div className="space-y-2">
-                                                        {diversification.vegetables.map((veg, index) => (
+                                                        {diversification.legumes.map((legume, index) => (
                                                             <div key={index} className="bg-green-50 rounded-xl p-3 border border-green-200">
                                                                 <div className="flex items-center justify-between mb-1">
-                                                                    <span className="font-semibold text-green-800">{veg.name}</span>
-                                                                    <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded-full">{veg.quantity}</span>
+                                                                    <span className="font-semibold text-green-800">{legume.nom}</span>
+                                                                    <span className="text-xs bg-green-200 text-green-800 px-2 py-1 rounded-full">{legume.quantite}</span>
                                                                 </div>
                                                                 <div className="text-xs text-green-700">
-                                                                    <span className="font-medium">Texture:</span> {veg.texture} •
-                                                                    <span className="font-medium"> Préparation:</span> {veg.preparation}
+                                                                    <span className="font-medium">Préparation:</span> {legume.preparation}
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -4133,6 +4838,97 @@
                                                 </div>
                                             )}
 
+                                            {/* Fruits */}
+                                            {diversification.fruits && diversification.fruits.length > 0 && (
+                                                <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/30">
+                                                    <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                                                        <div className="w-8 h-8 bg-orange-100 rounded-xl flex items-center justify-center">
+                                                            <i className="fas fa-apple-alt text-orange-600"></i>
+                                                        </div>
+                                                        Fruits recommandés
+                                                    </h4>
+                                                    <div className="space-y-2">
+                                                        {diversification.fruits.map((fruit, index) => (
+                                                            <div key={index} className="bg-orange-50 rounded-xl p-3 border border-orange-200">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <span className="font-semibold text-orange-800">{fruit.nom}</span>
+                                                                    <span className="text-xs bg-orange-200 text-orange-800 px-2 py-1 rounded-full">{fruit.quantite}</span>
+                                                                </div>
+                                                                <div className="text-xs text-orange-700">
+                                                                    <span className="font-medium">Préparation:</span> {fruit.preparation}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Féculents (si applicable) */}
+                                            {diversification.feculents && diversification.feculents.length > 0 && (
+                                                <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/30">
+                                                    <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                                                        <div className="w-8 h-8 bg-yellow-100 rounded-xl flex items-center justify-center">
+                                                            <i className="fas fa-bread-slice text-yellow-600"></i>
+                                                        </div>
+                                                        Féculents
+                                                    </h4>
+                                                    <div className="space-y-2">
+                                                        {diversification.feculents.map((feculent, index) => (
+                                                            <div key={index} className="bg-yellow-50 rounded-xl p-3 border border-yellow-200">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <span className="font-semibold text-yellow-800">{feculent.nom}</span>
+                                                                    <span className="text-xs bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full">{feculent.quantite}</span>
+                                                                </div>
+                                                                <div className="text-xs text-yellow-700">
+                                                                    <span className="font-medium">Préparation:</span> {feculent.preparation}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Protéines (si applicable) */}
+                                            {diversification.proteines && diversification.proteines.length > 0 && (
+                                                <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/30">
+                                                    <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                                                        <div className="w-8 h-8 bg-red-100 rounded-xl flex items-center justify-center">
+                                                            <i className="fas fa-drumstick-bite text-red-600"></i>
+                                                        </div>
+                                                        Protéines
+                                                    </h4>
+                                                    <div className="space-y-2">
+                                                        {diversification.proteines.map((proteine, index) => (
+                                                            <div key={index} className="bg-red-50 rounded-xl p-3 border border-red-200">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <span className="font-semibold text-red-800">{proteine.nom}</span>
+                                                                    <span className="text-xs bg-red-200 text-red-800 px-2 py-1 rounded-full">{proteine.quantite}</span>
+                                                                </div>
+                                                                <div className="text-xs text-red-700">
+                                                                    <span className="font-medium">Préparation:</span> {proteine.preparation}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Aliments interdits */}
+                                            {diversification.interdits && diversification.interdits.length > 0 && (
+                                                <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+                                                    <h4 className="font-medium text-red-800 mb-2 flex items-center gap-2">
+                                                        <i className="fas fa-ban text-red-600"></i>
+                                                        À éviter à cet âge
+                                                    </h4>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {diversification.interdits.map((interdit, index) => (
+                                                            <span key={index} className="text-xs bg-red-200 text-red-800 px-2 py-1 rounded-full">
+                                                                {interdit}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                             {/* Suivi personnalisé */}
                                             <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/30">
                                                 <div className="flex items-center justify-between mb-3">
@@ -4254,15 +5050,20 @@
                                                             <div className="flex items-center justify-between mb-2">
                                                                 <div className="flex items-center gap-3">
                                                                     <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                                                                        <span className="text-lg">
-                                                                            {item.type === 'Body' && '👕'}
-                                                                            {item.type === 'Pyjama' && '🩱'}
-                                                                            {item.type === 'Pantalon' && '👖'}
-                                                                            {item.type === 'T-shirt' && '👕'}
-                                                                            {item.type === 'Robe' && '👗'}
-                                                                            {item.type === 'Chaussettes' && '🧦'}
-                                                                            {item.type === 'Autre' && '👶'}
-                                                                        </span>
+                                                                        <i className={`text-lg text-purple-600 ${item.type === 'Body manche courte' ? 'fas fa-tshirt' :
+                                                                            item.type === 'Body manche longue' ? 'fas fa-tshirt' :
+                                                                                item.type === 'T-shirt manche courte' ? 'fas fa-tshirt' :
+                                                                                    item.type === 'T-shirt manche longue' ? 'fas fa-tshirt' :
+                                                                                        item.type === 'Pull' ? 'fas fa-user-tie' :
+                                                                                            item.type === 'Pyjama' ? 'fas fa-bed' :
+                                                                                                item.type === 'Pantalon' ? 'fas fa-child' :
+                                                                                                    item.type === 'Robe' ? 'fas fa-female' :
+                                                                                                        item.type === 'Gigoteuse' ? 'fas fa-baby' :
+                                                                                                            item.type === 'Chaussettes' ? 'fas fa-socks' :
+                                                                                                                item.type === 'Bonnet' ? 'fas fa-hat-wizard' :
+                                                                                                                    item.type === 'Gilet' ? 'fas fa-vest' :
+                                                                                                                        'fas fa-question'
+                                                                            }`}></i>
                                                                     </div>
                                                                     <div>
                                                                         <span className="font-semibold text-gray-800">{item.type}</span>
@@ -4463,16 +5264,39 @@
                                                 {(() => {
                                                     const calculation = calculateMilkByWeight(currentWeight, age);
                                                     return calculation ? (
-                                                        <div className="text-sm text-gray-700">
-                                                            <p>• <strong>Total par jour :</strong> {calculation.totalPerDay}ml</p>
-                                                            <p>• <strong>Biberons recommandés :</strong> {calculation.feedingsPerDay} par jour</p>
-                                                            <p>• <strong>Volume par biberon :</strong> {calculation.mlPerFeeding}ml</p>
+                                                        <div className="space-y-3">
+                                                            <div className="text-sm text-gray-700">
+                                                                <p>• <strong>Total par jour :</strong> {calculation.totalPerDay}ml</p>
+                                                                <p>• <strong>Biberons recommandés :</strong> {calculation.feedingsPerDay} par jour</p>
+                                                                <p>• <strong>Volume par biberon :</strong> {calculation.mlPerFeeding}ml</p>
+                                                            </div>
+
+                                                            {/* Message explicatif */}
+                                                            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                                                                <p className="text-xs text-gray-500 leading-relaxed">
+                                                                    Ce calcul est une estimation pour vous donner une idée de la dose adaptée.
+                                                                    Chaque bébé est différent, en cas de doute consultez toujours votre pédiatre.
+                                                                </p>
+                                                            </div>
+
+                                                            {/* Astuce pratique */}
+                                                            <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                                                <div className="flex items-start gap-2">
+                                                                    <span className="text-blue-500 text-sm">💡</span>
+                                                                    <div>
+                                                                        <p className="text-xs font-medium text-blue-800 mb-1">Astuce pratique</p>
+                                                                        <p className="text-xs text-blue-700 leading-relaxed">
+                                                                            Si votre bébé a encore faim avant 2 heures d'intervalle,
+                                                                            vous pouvez augmenter la dose de 10 ml.
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     ) : null;
                                                 })()}
                                             </div>
                                         )}
-
                                         <button
                                             onClick={async () => {
                                                 if (currentWeight) {
@@ -4891,6 +5715,197 @@
                                 </div>
                             </div>
                         )}
+                        {/* Vue Tracker de sommeil */}
+                        {currentView === 'sleep-tracker' && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xl font-bold text-gray-800">💤 Suivi du sommeil</h2>
+                                    <button
+                                        onClick={() => setCurrentView('daily')}
+                                        className="text-gray-500 hover:text-gray-700"
+                                    >
+                                        <i className="fas fa-times text-xl"></i>
+                                    </button>
+                                </div>
+
+                                <div className="bg-white/90 rounded-2xl p-6 shadow-xl border border-white/50">
+                                    {currentSleep ? (
+                                        <div className="text-center">
+                                            <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <i className="fas fa-moon text-purple-600 text-2xl"></i>
+                                            </div>
+                                            <h3 className="text-lg font-bold text-gray-900 mb-2">Sommeil en cours</h3>
+                                            <p className="text-sm text-gray-600 mb-4">
+                                                Démarré à {formatTime(currentSleep.startTime)}
+                                            </p>
+                                            <button
+                                                onClick={stopSleep}
+                                                className="w-full bg-gradient-to-r from-red-500 to-red-600 text-white py-4 rounded-xl font-bold"
+                                            >
+                                                Arrêter le sommeil
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center">
+                                            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                <i className="fas fa-play text-green-600 text-2xl"></i>
+                                            </div>
+                                            <h3 className="text-lg font-bold text-gray-900 mb-2">Démarrer une session</h3>
+                                            <p className="text-sm text-gray-600 mb-4">
+                                                Lancez le suivi quand bébé s'endort
+                                            </p>
+                                            <button
+                                                onClick={startSleep}
+                                                className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 rounded-xl font-bold mb-4"
+                                            >
+                                                Commencer le sommeil
+                                            </button>
+
+                                            <div className="border-t pt-4">
+                                                <button
+                                                    onClick={() => {
+                                                        setEditingSleepId(null);
+                                                        setSleepData({ startTime: '', endTime: '', date: getCurrentDate() });
+                                                        setCurrentView('sleep-manual');
+                                                    }}
+                                                    className="w-full bg-gray-100 text-gray-700 py-3 rounded-xl font-medium"
+                                                >
+                                                    Saisie manuelle
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Dernières sessions */}
+                                {/* Graphique sommeil */}
+                                <div className="bg-white/90 rounded-2xl p-4 shadow-xl border border-white/50 mb-4">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="font-bold text-gray-900">Évolution du sommeil</h3>
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={() => setSleepPeriodView('week')}
+                                                className={`px-2 py-1 text-xs rounded ${sleepPeriodView === 'week'
+                                                    ? 'bg-purple-500 text-white'
+                                                    : 'bg-gray-100 text-gray-600'}`}
+                                            >
+                                                7j
+                                            </button>
+                                            <button
+                                                onClick={() => setSleepPeriodView('month')}
+                                                className={`px-2 py-1 text-xs rounded ${sleepPeriodView === 'month'
+                                                    ? 'bg-purple-500 text-white'
+                                                    : 'bg-gray-100 text-gray-600'}`}
+                                            >
+                                                30j
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="h-32 bg-gradient-to-b from-purple-50 to-purple-100 rounded-xl p-2">
+                                        <canvas ref={sleepChartRef} className="w-full h-full"></canvas>
+                                    </div>
+                                </div>
+                                <div className="bg-white/90 rounded-2xl p-4 shadow-xl border border-white/50">
+                                    <h3 className="font-bold text-gray-900 mb-3">Dernières sessions</h3>
+                                    <div className="space-y-2">
+                                        {sleepSessions.filter(s => s.status === 'completed').slice(0, 3).map(session => (
+                                            <div key={session.id} className="bg-purple-50 rounded-xl p-3 border border-purple-200">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <div className="font-medium text-purple-800">
+                                                            {formatSleepDuration(session.duration)}
+                                                        </div>
+                                                        <div className="text-xs text-purple-600">
+                                                            {formatDateTime(session.startTime)}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => editSleepSession(session.id)}
+                                                            className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center active:scale-95 transition-transform"
+                                                        >
+                                                            <i className="fas fa-edit text-sm text-blue-600"></i>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => deleteSleepSession(session.id)}
+                                                            className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center active:scale-95 transition-transform"
+                                                        >
+                                                            <i className="fas fa-trash text-sm text-red-600"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {sleepSessions.filter(s => s.status === 'completed').length === 0 && (
+                                            <p className="text-gray-500 text-center py-4">Aucune session enregistrée</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Vue Saisie manuelle sommeil */}
+                        {currentView === 'sleep-manual' && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xl font-bold text-gray-800">
+                                        💤 {editingSleepId ? 'Modifier la session' : 'Saisie manuelle'}
+                                    </h2>
+                                    <button
+                                        onClick={() => {
+                                            setEditingSleepId(null);
+                                            setSleepData({ startTime: '', endTime: '', date: getCurrentDate() });
+                                            setCurrentView('sleep-tracker');
+                                        }}
+                                        className="text-gray-500 hover:text-gray-700"
+                                    >
+                                        <i className="fas fa-times text-xl"></i>
+                                    </button>
+                                </div>
+
+                                <div className="bg-white/90 rounded-2xl p-6 shadow-xl border border-white/50">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                                            <input
+                                                type="date"
+                                                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                value={sleepData.date}
+                                                onChange={(e) => setSleepData(prev => ({ ...prev, date: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Début</label>
+                                                <input
+                                                    type="time"
+                                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                    value={sleepData.startTime}
+                                                    onChange={(e) => setSleepData(prev => ({ ...prev, startTime: e.target.value }))}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Fin</label>
+                                                <input
+                                                    type="time"
+                                                    className="w-full px-4 py-3 rounded-xl border-2 border-gray-200"
+                                                    value={sleepData.endTime}
+                                                    onChange={(e) => setSleepData(prev => ({ ...prev, endTime: e.target.value }))}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            onClick={saveSleepEdit}
+                                            className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white py-4 rounded-xl font-bold"
+                                        >
+                                            {editingSleepId ? 'Mettre à jour la session' : 'Enregistrer la session'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         {/* Formulaire garde-robe */}
                         {currentView === 'wardrobe-form' && (
                             <div className="space-y-6">
@@ -4914,14 +5929,18 @@
                                                 onChange={(e) => setWardrobeData(prev => ({ ...prev, type: e.target.value }))}
                                             >
                                                 <option value="">Choisir...</option>
-                                                <option value="Body">Body</option>
-                                                <option value="Pyjama">Pyjama</option>
-                                                <option value="T-shirt">T-shirt</option>
-                                                <option value="Pantalon">Pantalon</option>
-                                                <option value="Robe">Robe</option>
-                                                <option value="Chaussettes">Chaussettes</option>
+                                                <option value="Body manche courte">Body manche courte</option>
+                                                <option value="Body manche longue">Body manche longue</option>
                                                 <option value="Bonnet">Bonnet</option>
+                                                <option value="Chaussettes">Chaussettes</option>
+                                                <option value="Gigoteuse">Gigoteuse</option>
                                                 <option value="Gilet">Gilet</option>
+                                                <option value="Pantalon">Pantalon</option>
+                                                <option value="Pull">Pull</option>
+                                                <option value="Pyjama">Pyjama</option>
+                                                <option value="Robe">Robe</option>
+                                                <option value="T-shirt manche courte">T-shirt manche courte</option>
+                                                <option value="T-shirt manche longue">T-shirt manche longue</option>
                                                 <option value="Autre">Autre</option>
                                             </select>
                                         </div>
