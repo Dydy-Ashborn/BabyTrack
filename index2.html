@@ -3,16 +3,17 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>BabyTrack</title>
-    
+
     <!-- PWA Configuration -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#3B82F6">
-    
+
     <!-- Favicons -->
     <link rel="icon" type="image/png" href="logo.PNG">
-    
+
     <!-- Apple iOS Configuration -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -20,11 +21,11 @@
     <link rel="apple-touch-icon" sizes="152x152" href="logo.PNG">
     <link rel="apple-touch-icon" sizes="180x180" href="logo.PNG">
     <link rel="apple-touch-icon" sizes="192x192" href="logo.PNG">
-    
+
     <!-- Mobile Web App -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    
+
     <!-- Scripts et styles -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -35,6 +36,9 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<!-- CDN jsPDF + html2canvas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
         body {
@@ -62,6 +66,7 @@
                 opacity: 0;
                 transform: translateY(10px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -73,9 +78,12 @@
         }
 
         @keyframes pulse-gentle {
-            0%, 100% {
+
+            0%,
+            100% {
                 opacity: 1;
             }
+
             50% {
                 opacity: 0.7;
             }
@@ -112,7 +120,8 @@
         <defs>
             <symbol id="logo-symbol" viewBox="0 0 200 120">
                 <!-- Montre/cadre -->
-                <rect x="20" y="30" width="100" height="60" rx="20" ry="20" fill="url(#gradient1)" stroke="#2563eb" stroke-width="4" />
+                <rect x="20" y="30" width="100" height="60" rx="20" ry="20" fill="url(#gradient1)" stroke="#2563eb"
+                    stroke-width="4" />
                 <rect x="25" y="35" width="90" height="50" rx="15" ry="15" fill="white" />
 
                 <!-- Visage bébé -->
@@ -1675,27 +1684,27 @@
                     setNotificationPermission(Notification.permission);
                 }
             }, []);
-           
-           useEffect(() => {
-        // Détection iOS pour les notifications
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        
-        if (isIOS) {
-            // Message spécifique pour iOS
-            console.log('iOS détecté - PWA mode');
-            
-            // Vérifier si l'app est en mode PWA
-            const isStandalone = window.navigator.standalone === true;
-            if (!isStandalone) {
-                // Suggérer d'ajouter à l'écran d'accueil après 5 secondes
-                setTimeout(() => {
-                    if (window.confirm('Pour une meilleure expérience, ajoutez BabyTrack à votre écran d\'accueil !')) {
-                        alert('Appuyez sur le bouton Partager puis "Sur l\'écran d\'accueil"');
+
+            useEffect(() => {
+                // Détection iOS pour les notifications
+                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+                if (isIOS) {
+                    // Message spécifique pour iOS
+                    console.log('iOS détecté - PWA mode');
+
+                    // Vérifier si l'app est en mode PWA
+                    const isStandalone = window.navigator.standalone === true;
+                    if (!isStandalone) {
+                        // Suggérer d'ajouter à l'écran d'accueil après 5 secondes
+                        setTimeout(() => {
+                            if (window.confirm('Pour une meilleure expérience, ajoutez BabyTrack à votre écran d\'accueil !')) {
+                                alert('Appuyez sur le bouton Partager puis "Sur l\'écran d\'accueil"');
+                            }
+                        }, 5000);
                     }
-                }, 5000);
-            }
-        }
-    }, []);
+                }
+            }, []);
             // Authentification
             const handleCreateAccount = async () => {
                 const { babyName, birthDate, birthTime, birthWeight, birthHeight, parents, gender } = authData;
@@ -1785,217 +1794,203 @@
                 }
             };
             // Fonctions d'exportation
-            const exportToCSV = async () => {
-                setIsExporting(true);
 
-                try {
-                    // Déterminer la période
-                    const now = new Date();
-                    let startDate, endDate;
+        async function exportToPDF() {
+  setIsExporting(true);
 
-                    switch (exportPeriod) {
-                        case 'day':
-                            startDate = getDayStart(now);
-                            endDate = getDayEnd(now);
-                            break;
-                        case 'week':
-                            startDate = new Date(now);
-                            startDate.setDate(startDate.getDate() - 7);
-                            startDate.setHours(0, 0, 0, 0);
-                            endDate = getDayEnd(now);
-                            break;
-                        case 'month':
-                            startDate = new Date(now);
-                            startDate.setDate(startDate.getDate() - 30);
-                            startDate.setHours(0, 0, 0, 0);
-                            endDate = getDayEnd(now);
-                            break;
-                    }
+  try {
+    const stats = getStats(exportPeriod === "day" ? "daily" : exportPeriod === "week" ? "weekly" : "monthly");
 
-                    // Filtrer les données
-                    const exportEntries = entries.filter(entry => {
-                        const entryDate = new Date(entry.timestamp);
-                        return entryDate >= startDate && entryDate <= endDate;
-                    });
+    const now = new Date();
+    let startDate, endDate, periodLabel;
+    switch (exportPeriod) {
+      case "day":
+        startDate = getDayStart(now);
+        endDate = getDayEnd(now);
+        periodLabel = "Rapport du jour";
+        break;
+      case "week":
+        startDate = new Date(now);
+        startDate.setDate(startDate.getDate() - 7);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = getDayEnd(now);
+        periodLabel = "Rapport hebdomadaire";
+        break;
+      case "month":
+        startDate = new Date(now);
+        startDate.setDate(startDate.getDate() - 30);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = getDayEnd(now);
+        periodLabel = "Rapport mensuel";
+        break;
+    }
 
-                    const exportSleep = sleepSessions.filter(session => {
-                        const sessionDate = new Date(session.startTime);
-                        return session.status === 'completed' && sessionDate >= startDate && sessionDate <= endDate;
-                    });
+    const exportEntries = entries.filter(entry => {
+      const entryDate = new Date(entry.timestamp);
+      return entryDate >= startDate && entryDate <= endDate;
+    });
 
-                    // Créer le CSV
-                    let csvContent = 'Date,Heure,Type,Détails,Notes\n';
+    // Contenu HTML pour le PDF
+    const printHTML = `
+      <div id="pdf-report" style="width:210mm; background:white; padding:20px; font-family:Arial, sans-serif; color:#1a1a1a;">
 
-                    // Ajouter les biberons et changes
-                    exportEntries.forEach(entry => {
-                        const date = new Date(entry.timestamp).toLocaleDateString('fr-FR');
-                        const time = new Date(entry.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        <!-- HEADER -->
+        <div style="display:flex; align-items:center; border-bottom:3px solid #3B82F6; margin-bottom:20px; padding-bottom:10px;">
+          <div style="width:100px;height:100px;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;margin-right:15px;">
+            <img src="logo.PNG" style="width:100%;height:100%;object-fit:cover;" alt="Logo">
+          </div>
+          <div>
+            <h1 style="margin:0;font-size:22px;color:#1e293b;">BabyTrack</h1>
+            <p style="margin:0;color:#64748b;font-size:14px;">${user.babyName} - ${periodLabel}</p>
+            <p style="margin:0;color:#3B82F6;font-size:12px;">Du ${startDate.toLocaleDateString("fr-FR")} au ${endDate.toLocaleDateString("fr-FR")}</p>
+          </div>
+        </div>
 
-                        if (entry.type === 'feeding') {
-                            csvContent += `${date},${time},Biberon,${entry.amount}ml,\n`;
-                        } else if (entry.type === 'diaper') {
-                            const details = [];
-                            if (entry.hasPee) details.push('Pipi');
-                            if (entry.hasPoop) {
-                                let poopDetails = 'Caca';
-                                if (entry.poopQuantity) poopDetails += ` (${entry.poopQuantity})`;
-                                if (entry.poopConsistency) poopDetails += ` - ${entry.poopConsistency}`;
-                                if (entry.poopColor) poopDetails += ` - ${entry.poopColor}`;
-                                details.push(poopDetails);
-                            }
-                            csvContent += `${date},${time},Change,"${details.join(' + ')}",\n`;
-                        }
-                    });
+        <!-- INFOS -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-bottom:20px;">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #3B82F6;padding:12px;border-radius:6px;">
+            <h3 style="margin:0 0 8px 0;font-size:13px;color:#1e293b;">👶 Informations du bébé</h3>
+            <p><strong>Nom:</strong> ${user.babyName}</p>
+            <p><strong>Âge:</strong> ${formatAgeDisplay(calculateAge())}</p>
+            <p><strong>Poids:</strong> ${currentWeight || user.birthWeight}kg</p>
+            <p><strong>Taille:</strong> ${currentHeight || user.birthHeight}cm</p>
+          </div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-left:4px solid #3B82F6;padding:12px;border-radius:6px;">
+            <h3 style="margin:0 0 8px 0;font-size:13px;color:#1e293b;">👪 Informations famille</h3>
+            <p><strong>Parents:</strong> ${user.parents}</p>
+            <p><strong>Code famille:</strong> ${user.code}</p>
+            <p><strong>Date du rapport:</strong> ${new Date().toLocaleDateString("fr-FR")}</p>
+          </div>
+        </div>
 
-                    // Ajouter les sessions de sommeil
-                    exportSleep.forEach(session => {
-                        const startDate = new Date(session.startTime).toLocaleDateString('fr-FR');
-                        const startTime = new Date(session.startTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-                        const endTime = new Date(session.endTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-                        const duration = formatSleepDuration(session.duration);
+        <!-- STATS -->
+        <div style="margin-bottom:20px;">
+          <h2 style="font-size:14px;font-weight:600;color:#1e293b;border-bottom:2px solid #3B82F6;padding-bottom:4px;">📊 Statistiques de la période</h2>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+            <div style="text-align:center;padding:12px;background:#f1f5f9;border-radius:6px;border:1px solid #e2e8f0;">
+              <span style="font-size:18px;font-weight:bold;color:#3B82F6;">${stats.totalMilk}</span><br>
+              <span style="font-size:10px;color:#64748b;">ml de lait</span>
+            </div>
+            <div style="text-align:center;padding:12px;background:#f1f5f9;border-radius:6px;border:1px solid #e2e8f0;">
+              <span style="font-size:18px;font-weight:bold;color:#3B82F6;">${stats.feedingCount}</span><br>
+              <span style="font-size:10px;color:#64748b;">biberons</span>
+            </div>
+            <div style="text-align:center;padding:12px;background:#f1f5f9;border-radius:6px;border:1px solid #e2e8f0;">
+              <span style="font-size:18px;font-weight:bold;color:#3B82F6;">${stats.totalPees}</span><br>
+              <span style="font-size:10px;color:#64748b;">pipis</span>
+            </div>
+            <div style="text-align:center;padding:12px;background:#f1f5f9;border-radius:6px;border:1px solid #e2e8f0;">
+              <span style="font-size:18px;font-weight:bold;color:#3B82F6;">${stats.totalPoops}</span><br>
+              <span style="font-size:10px;color:#64748b;">cacas</span>
+            </div>
+          </div>
+        </div>
 
-                        csvContent += `${startDate},${startTime},Sommeil,"${startTime} → ${endTime} (${duration})",\n`;
-                    });
+        <!-- HISTORIQUE -->
+        ${
+          exportEntries.length > 0
+            ? `
+          <div style="margin-bottom:20px;">
+            <h2 style="font-size:14px;font-weight:600;color:#1e293b;border-bottom:2px solid #3B82F6;padding-bottom:4px;">📋 Historique détaillé (15 dernières entrées)</h2>
+            ${exportEntries
+              .slice(0, 15)
+              .map(entry => {
+                const time = new Date(entry.timestamp).toLocaleString("fr-FR");
+        if (entry.type === "feeding") {
+  return `
+    <div style="display:flex;align-items:center;padding:6px 10px;margin-bottom:6px;background:#f9fafb;border-radius:6px;border-left:3px solid #3B82F6;">
+      <div style="min-width:110px;font-size:11px;font-weight:600;color:#3B82F6;">${time}</div>
+      <span style="
+        display:inline-block;
+        height:20px;
+        line-height:20px;
+        min-width:60px;
+        text-align:center;
+        background:#3B82F6;
+        color:white;
+        border-radius:12px;
+        font-size:10px;
+        font-weight:600;
+        margin-right:10px;">
+        BIBERON
+      </span>
+      <div style="font-size:11px;color:#374151;">Quantité: ${entry.amount}ml</div>
+    </div>`;
+} else if (entry.type === "diaper") {
+  const details = [];
+  if (entry.hasPee) details.push("Pipi");
+  if (entry.hasPoop) details.push("Caca");
+  return `
+    <div style="display:flex;align-items:center;padding:6px 10px;margin-bottom:6px;background:#f9fafb;border-radius:6px;border-left:3px solid #10b981;">
+      <div style="min-width:110px;font-size:11px;font-weight:600;color:#3B82F6;">${time}</div>
+      <span style="
+        display:inline-block;
+        height:20px;
+        line-height:20px;
+        min-width:60px;
+        text-align:center;
+        background:#10b981;
+        color:white;
+        border-radius:12px;
+        font-size:10px;
+        font-weight:600;
+        margin-right:10px;">
+        CHANGE
+      </span>
+      <div style="font-size:11px;color:#374151;">${details.join(" + ")}</div>
+    </div>`;
+}
 
-                    // Ajouter les médicaments
-                    medications.forEach(med => {
-                        const date = new Date(med.timestamp).toLocaleDateString('fr-FR');
-                        const time = new Date(med.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-                        csvContent += `${date},${time},Médicament,"${med.name} - ${med.dosage}",\n`;
-                    });
+                return "";
+              })
+              .join("")}
+          </div>`
+            : ""
+        }
+    `;
 
-                    // Télécharger le fichier
-                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                    const link = document.createElement('a');
-                    const url = URL.createObjectURL(blob);
-                    link.setAttribute('href', url);
-                    link.setAttribute('download', `BabyTrack_${user.babyName}_${exportPeriod}_${new Date().toISOString().slice(0, 10)}.csv`);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+    // Ajout temporaire au DOM
+    const container = document.createElement("div");
+    container.innerHTML = printHTML;
+    document.body.appendChild(container);
 
-                    setShowExportMenu(false);
-                } catch (error) {
-                    console.error('Erreur export CSV:', error);
-                    alert('Erreur lors de l\'export CSV');
-                } finally {
-                    setIsExporting(false);
-                }
-            };
+    const element = container.querySelector("#pdf-report");
 
-            const exportToPDF = async () => {
-                setIsExporting(true);
+    // Conversion en canvas puis PDF
+    const canvas = await html2canvas(element, { scale: 2 });
+    const imgData = canvas.toDataURL("image/png");
 
-                try {
-                    const stats = getStats(exportPeriod === 'day' ? 'daily' : exportPeriod === 'week' ? 'weekly' : 'monthly');
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF("p", "mm", "a4");
+    const imgWidth = 210;
+    const pageHeight = 297;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
 
-                    const now = new Date();
-                    let startDate, endDate, periodLabel;
-                    switch (exportPeriod) {
-                        case 'day':
-                            startDate = getDayStart(now);
-                            endDate = getDayEnd(now);
-                            periodLabel = 'Aujourd\'hui';
-                            break;
-                        case 'week':
-                            startDate = new Date(now);
-                            startDate.setDate(startDate.getDate() - 7);
-                            endDate = getDayEnd(now);
-                            periodLabel = '7 derniers jours';
-                            break;
-                        case 'month':
-                            startDate = new Date(now);
-                            startDate.setDate(startDate.getDate() - 30);
-                            endDate = getDayEnd(now);
-                            periodLabel = '30 derniers jours';
-                            break;
-                    }
+    let heightLeft = imgHeight;
+    let position = 0;
 
-                    const exportEntries = entries.filter(entry => {
-                        const entryDate = new Date(entry.timestamp);
-                        return entryDate >= startDate && entryDate <= endDate;
-                    });
+    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
 
-                    // Créer un contenu texte structuré et professionnel
-                    let content = '';
-                    content += '╔══════════════════════════════════════════════════════╗\n';
-                    content += '║                    BABYTRACK                         ║\n';
-                    content += '║                RAPPORT DE SUIVI                      ║\n';
-                    content += '╚══════════════════════════════════════════════════════╝\n\n';
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
 
-                    content += 'INFORMATIONS GÉNÉRALES\n';
-                    content += '━━━━━━━━━━━━━━━━━━━━━━\n';
-                    content += 'Bébé:     ' + user.babyName + '\n';
-                    content += 'Parents:  ' + user.parents + '\n';
-                    content += 'Âge:      ' + formatAgeDisplay(calculateAge()) + '\n';
-                    content += 'Poids:    ' + (currentWeight || user.birthWeight) + 'kg\n';
-                    content += 'Taille:   ' + (currentHeight || user.birthHeight) + 'cm\n';
-                    content += 'Période:  ' + periodLabel + '\n';
-                    content += 'Date:     ' + new Date().toLocaleDateString('fr-FR') + '\n\n';
+    pdf.save(`Rapport_${periodLabel}_${new Date().toLocaleDateString("fr-FR")}.pdf`);
 
-                    content += 'STATISTIQUES\n';
-                    content += '━━━━━━━━━━━━\n';
-                    content += '┌─────────────────────┬─────────────┐\n';
-                    content += '│ Lait consommé       │ ' + stats.totalMilk.toString().padStart(8) + ' ml │\n';
-                    content += '│ Nombre de biberons  │ ' + stats.feedingCount.toString().padStart(11) + ' │\n';
-                    content += '│ Nombre de pipis     │ ' + stats.totalPees.toString().padStart(11) + ' │\n';
-                    content += '│ Nombre de cacas     │ ' + stats.totalPoops.toString().padStart(11) + ' │\n';
-                    content += '└─────────────────────┴─────────────┘\n\n';
-
-                    if (exportEntries.length > 0) {
-                        content += 'HISTORIQUE DÉTAILLÉ\n';
-                        content += '━━━━━━━━━━━━━━━━━━━\n';
-
-                        exportEntries.slice(0, 20).forEach((entry, index) => {
-                            const date = new Date(entry.timestamp).toLocaleDateString('fr-FR');
-                            const time = new Date(entry.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-
-                            content += (index + 1).toString().padStart(2) + '. ';
-                            content += date + ' ' + time + ' - ';
-
-                            if (entry.type === 'feeding') {
-                                content += 'BIBERON: ' + entry.amount + 'ml\n';
-                            } else if (entry.type === 'diaper') {
-                                const details = [];
-                                if (entry.hasPee) details.push('Pipi');
-                                if (entry.hasPoop) {
-                                    let poopDetail = 'Caca';
-                                    if (entry.poopQuantity) poopDetail += ' (' + entry.poopQuantity + ')';
-                                    details.push(poopDetail);
-                                }
-                                content += 'CHANGE: ' + details.join(' + ') + '\n';
-                            }
-                        });
-                    }
-
-                    content += '\n';
-                    content += '╔══════════════════════════════════════════════════════╗\n';
-                    content += '║                    BABYTRACK                         ║\n';
-                    content += '║            Application de suivi pour bébé            ║\n';
-                    content += '║          Rapport généré automatiquement             ║\n';
-                    content += '╚══════════════════════════════════════════════════════╝';
-
-                    // Télécharger le fichier
-                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-                    const link = document.createElement('a');
-                    const url = URL.createObjectURL(blob);
-                    link.href = url;
-                    link.download = 'BabyTrack_Rapport_' + user.babyName + '_' + new Date().toISOString().slice(0, 10) + '.txt';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-
-                    setShowExportMenu(false);
-
-                } catch (error) {
-                    console.error('Erreur export:', error);
-                    alert('Erreur lors de l\'export');
-                } finally {
-                    setIsExporting(false);
-                }
-            };
-
+    // Nettoyage
+    document.body.removeChild(container);
+    setShowExportMenu(false);
+  } catch (error) {
+    console.error("Erreur export PDF:", error);
+    alert("Erreur lors de l'export PDF");
+  } finally {
+    setIsExporting(false);
+  }
+}
             const logout = () => {
                 setUser(null);
                 localStorage.removeItem('familyCode');
@@ -3814,13 +3809,7 @@
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-3">
-                                            <button
-                                                onClick={exportToCSV}
-                                                disabled={isExporting}
-                                                className="bg-green-500 text-white py-3 rounded-xl font-medium disabled:opacity-50"
-                                            >
-                                                {isExporting ? 'Export...' : 'CSV'}
-                                            </button>
+
                                             <button
                                                 onClick={exportToPDF}
                                                 disabled={isExporting}
