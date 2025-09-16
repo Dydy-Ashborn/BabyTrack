@@ -907,7 +907,7 @@
                     );
                 }
             };
-            // Notifications pour médicaments
+            // Notifswitch (periodView) {ications pour médicaments
             const scheduleMedicationNotifications = () => {
                 if (notificationPermission !== 'granted') return;
 
@@ -1765,6 +1765,218 @@
                     }
                 }
             };
+            // Fonctions d'exportation
+            const exportToCSV = async () => {
+                setIsExporting(true);
+
+                try {
+                    // Déterminer la période
+                    const now = new Date();
+                    let startDate, endDate;
+
+                    switch (exportPeriod) {
+                        case 'day':
+                            startDate = getDayStart(now);
+                            endDate = getDayEnd(now);
+                            break;
+                        case 'week':
+                            startDate = new Date(now);
+                            startDate.setDate(startDate.getDate() - 7);
+                            startDate.setHours(0, 0, 0, 0);
+                            endDate = getDayEnd(now);
+                            break;
+                        case 'month':
+                            startDate = new Date(now);
+                            startDate.setDate(startDate.getDate() - 30);
+                            startDate.setHours(0, 0, 0, 0);
+                            endDate = getDayEnd(now);
+                            break;
+                    }
+
+                    // Filtrer les données
+                    const exportEntries = entries.filter(entry => {
+                        const entryDate = new Date(entry.timestamp);
+                        return entryDate >= startDate && entryDate <= endDate;
+                    });
+
+                    const exportSleep = sleepSessions.filter(session => {
+                        const sessionDate = new Date(session.startTime);
+                        return session.status === 'completed' && sessionDate >= startDate && sessionDate <= endDate;
+                    });
+
+                    // Créer le CSV
+                    let csvContent = 'Date,Heure,Type,Détails,Notes\n';
+
+                    // Ajouter les biberons et changes
+                    exportEntries.forEach(entry => {
+                        const date = new Date(entry.timestamp).toLocaleDateString('fr-FR');
+                        const time = new Date(entry.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+                        if (entry.type === 'feeding') {
+                            csvContent += `${date},${time},Biberon,${entry.amount}ml,\n`;
+                        } else if (entry.type === 'diaper') {
+                            const details = [];
+                            if (entry.hasPee) details.push('Pipi');
+                            if (entry.hasPoop) {
+                                let poopDetails = 'Caca';
+                                if (entry.poopQuantity) poopDetails += ` (${entry.poopQuantity})`;
+                                if (entry.poopConsistency) poopDetails += ` - ${entry.poopConsistency}`;
+                                if (entry.poopColor) poopDetails += ` - ${entry.poopColor}`;
+                                details.push(poopDetails);
+                            }
+                            csvContent += `${date},${time},Change,"${details.join(' + ')}",\n`;
+                        }
+                    });
+
+                    // Ajouter les sessions de sommeil
+                    exportSleep.forEach(session => {
+                        const startDate = new Date(session.startTime).toLocaleDateString('fr-FR');
+                        const startTime = new Date(session.startTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                        const endTime = new Date(session.endTime).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                        const duration = formatSleepDuration(session.duration);
+
+                        csvContent += `${startDate},${startTime},Sommeil,"${startTime} → ${endTime} (${duration})",\n`;
+                    });
+
+                    // Ajouter les médicaments
+                    medications.forEach(med => {
+                        const date = new Date(med.timestamp).toLocaleDateString('fr-FR');
+                        const time = new Date(med.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                        csvContent += `${date},${time},Médicament,"${med.name} - ${med.dosage}",\n`;
+                    });
+
+                    // Télécharger le fichier
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `BabyTrack_${user.babyName}_${exportPeriod}_${new Date().toISOString().slice(0, 10)}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    setShowExportMenu(false);
+                } catch (error) {
+                    console.error('Erreur export CSV:', error);
+                    alert('Erreur lors de l\'export CSV');
+                } finally {
+                    setIsExporting(false);
+                }
+            };
+
+            const exportToPDF = async () => {
+                setIsExporting(true);
+
+                try {
+                    const stats = getStats(exportPeriod === 'day' ? 'daily' : exportPeriod === 'week' ? 'weekly' : 'monthly');
+
+                    const now = new Date();
+                    let startDate, endDate, periodLabel;
+                    switch (exportPeriod) {
+                        case 'day':
+                            startDate = getDayStart(now);
+                            endDate = getDayEnd(now);
+                            periodLabel = 'Aujourd\'hui';
+                            break;
+                        case 'week':
+                            startDate = new Date(now);
+                            startDate.setDate(startDate.getDate() - 7);
+                            endDate = getDayEnd(now);
+                            periodLabel = '7 derniers jours';
+                            break;
+                        case 'month':
+                            startDate = new Date(now);
+                            startDate.setDate(startDate.getDate() - 30);
+                            endDate = getDayEnd(now);
+                            periodLabel = '30 derniers jours';
+                            break;
+                    }
+
+                    const exportEntries = entries.filter(entry => {
+                        const entryDate = new Date(entry.timestamp);
+                        return entryDate >= startDate && entryDate <= endDate;
+                    });
+
+                    // Créer un contenu texte structuré et professionnel
+                    let content = '';
+                    content += '╔══════════════════════════════════════════════════════╗\n';
+                    content += '║                    BABYTRACK                         ║\n';
+                    content += '║                RAPPORT DE SUIVI                      ║\n';
+                    content += '╚══════════════════════════════════════════════════════╝\n\n';
+
+                    content += 'INFORMATIONS GÉNÉRALES\n';
+                    content += '━━━━━━━━━━━━━━━━━━━━━━\n';
+                    content += 'Bébé:     ' + user.babyName + '\n';
+                    content += 'Parents:  ' + user.parents + '\n';
+                    content += 'Âge:      ' + formatAgeDisplay(calculateAge()) + '\n';
+                    content += 'Poids:    ' + (currentWeight || user.birthWeight) + 'kg\n';
+                    content += 'Taille:   ' + (currentHeight || user.birthHeight) + 'cm\n';
+                    content += 'Période:  ' + periodLabel + '\n';
+                    content += 'Date:     ' + new Date().toLocaleDateString('fr-FR') + '\n\n';
+
+                    content += 'STATISTIQUES\n';
+                    content += '━━━━━━━━━━━━\n';
+                    content += '┌─────────────────────┬─────────────┐\n';
+                    content += '│ Lait consommé       │ ' + stats.totalMilk.toString().padStart(8) + ' ml │\n';
+                    content += '│ Nombre de biberons  │ ' + stats.feedingCount.toString().padStart(11) + ' │\n';
+                    content += '│ Nombre de pipis     │ ' + stats.totalPees.toString().padStart(11) + ' │\n';
+                    content += '│ Nombre de cacas     │ ' + stats.totalPoops.toString().padStart(11) + ' │\n';
+                    content += '└─────────────────────┴─────────────┘\n\n';
+
+                    if (exportEntries.length > 0) {
+                        content += 'HISTORIQUE DÉTAILLÉ\n';
+                        content += '━━━━━━━━━━━━━━━━━━━\n';
+
+                        exportEntries.slice(0, 20).forEach((entry, index) => {
+                            const date = new Date(entry.timestamp).toLocaleDateString('fr-FR');
+                            const time = new Date(entry.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+                            content += (index + 1).toString().padStart(2) + '. ';
+                            content += date + ' ' + time + ' - ';
+
+                            if (entry.type === 'feeding') {
+                                content += 'BIBERON: ' + entry.amount + 'ml\n';
+                            } else if (entry.type === 'diaper') {
+                                const details = [];
+                                if (entry.hasPee) details.push('Pipi');
+                                if (entry.hasPoop) {
+                                    let poopDetail = 'Caca';
+                                    if (entry.poopQuantity) poopDetail += ' (' + entry.poopQuantity + ')';
+                                    details.push(poopDetail);
+                                }
+                                content += 'CHANGE: ' + details.join(' + ') + '\n';
+                            }
+                        });
+                    }
+
+                    content += '\n';
+                    content += '╔══════════════════════════════════════════════════════╗\n';
+                    content += '║                    BABYTRACK                         ║\n';
+                    content += '║            Application de suivi pour bébé            ║\n';
+                    content += '║          Rapport généré automatiquement             ║\n';
+                    content += '╚══════════════════════════════════════════════════════╝';
+
+                    // Télécharger le fichier
+                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.href = url;
+                    link.download = 'BabyTrack_Rapport_' + user.babyName + '_' + new Date().toISOString().slice(0, 10) + '.txt';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+
+                    setShowExportMenu(false);
+
+                } catch (error) {
+                    console.error('Erreur export:', error);
+                    alert('Erreur lors de l\'export');
+                } finally {
+                    setIsExporting(false);
+                }
+            };
+            
             const logout = () => {
                 setUser(null);
                 localStorage.removeItem('familyCode');
@@ -2204,15 +2416,22 @@
                 }
 
                 const start = new Date(`${date}T${startTime}:00`);
-                const end = new Date(`${date}T${endTime}:00`);
+                let end = new Date(`${date}T${endTime}:00`);
 
+                // Si l'heure de fin est antérieure à l'heure de début, 
+                // on suppose que c'est le lendemain
                 if (end <= start) {
-                    alert('L\'heure de fin doit être après l\'heure de début');
-                    return;
+                    end.setDate(end.getDate() + 1);
                 }
 
                 const durationMs = end - start;
                 const durationMinutes = Math.floor(durationMs / (1000 * 60));
+
+                // Vérification que la durée reste raisonnable (max 15h)
+                if (durationMinutes > 900) {
+                    alert('La durée de sommeil semble trop longue (plus de 15h). Vérifiez les heures saisies.');
+                    return;
+                }
 
                 const sleepSession = {
                     familyCode: user.code,
@@ -2232,7 +2451,7 @@
 
                     setSleepData({ startTime: '', endTime: '', date: getCurrentDate() });
                     setEditingSleepId(null);
-                    setCurrentView('daily');
+                    setCurrentView('sleep-tracker');
                 } catch (error) {
                     console.error('Erreur sauvegarde sommeil:', error);
                     alert('Erreur lors de la sauvegarde');
@@ -2242,6 +2461,114 @@
                 const hours = Math.floor(minutes / 60);
                 const mins = minutes % 60;
                 return hours > 0 ? `${hours}h${mins.toString().padStart(2, '0')}` : `${mins}min`;
+            };
+            // Nouveau graphique croissance à ajouter après formatSleepDuration
+            const GrowthChart = () => {
+                const chartRef = useRef(null);
+                const chartInstance = useRef(null);
+
+                useEffect(() => {
+                    if (!chartRef.current) return;
+
+                    const ctx = chartRef.current.getContext('2d');
+
+                    if (chartInstance.current) {
+                        chartInstance.current.destroy();
+                    }
+
+                    // Données de croissance (exemple avec données actuelles)
+                    const growthData = [];
+
+                    // Poids de naissance
+                    if (user?.birthDate && user?.birthWeight) {
+                        growthData.push({
+                            date: new Date(user.birthDate),
+                            weight: user.birthWeight,
+                            height: user.birthHeight || null
+                        });
+                    }
+
+                    // Poids actuel si disponible
+                    if (currentWeight && lastWeightUpdate) {
+                        growthData.push({
+                            date: new Date(lastWeightUpdate),
+                            weight: currentWeight,
+                            height: currentHeight || null
+                        });
+                    }
+
+                    const labels = growthData.map(point =>
+                        point.date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+                    );
+
+                    chartInstance.current = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Poids (kg)',
+                                    data: growthData.map(point => point.weight),
+                                    borderColor: '#3B82F6',
+                                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                    tension: 0.4,
+                                    pointRadius: 5,
+                                    yAxisID: 'y'
+                                },
+                                {
+                                    label: 'Taille (cm)',
+                                    data: growthData.map(point => point.height),
+                                    borderColor: '#10B981',
+                                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                    tension: 0.4,
+                                    pointRadius: 5,
+                                    yAxisID: 'y1'
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    type: 'linear',
+                                    display: true,
+                                    position: 'left',
+                                    title: { display: true, text: 'Poids (kg)' },
+                                    ticks: { callback: value => value + 'kg' }
+                                },
+                                y1: {
+                                    type: 'linear',
+                                    display: true,
+                                    position: 'right',
+                                    title: { display: true, text: 'Taille (cm)' },
+                                    ticks: { callback: value => value + 'cm' },
+                                    grid: { drawOnChartArea: false }
+                                }
+                            }
+                        }
+                    });
+
+                    return () => {
+                        if (chartInstance.current) {
+                            chartInstance.current.destroy();
+                        }
+                    };
+                }, [currentWeight, currentHeight, user]);
+
+                return (
+                    <div className="bg-white/90 rounded-2xl p-4 shadow-xl border border-white/50 mb-4">
+                        <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                            <div className="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center">
+                                <i className="fas fa-chart-line text-indigo-600"></i>
+                            </div>
+                            Évolution de la croissance
+                        </h3>
+                        <div className="h-48">
+                            <canvas ref={chartRef} className="w-full h-full"></canvas>
+                        </div>
+                    </div>
+                );
             };
 
             const getSleepRecommendations = (ageInDays) => {
@@ -2293,29 +2620,35 @@
             };
             // Gestion des soins quotidiens
             const checkCareStatus = () => {
+                if (!dailyCare) return;
+
                 const today = getCurrentDate();
                 const newCareStatus = { ...dailyCare };
                 let hasChanges = false;
 
-                // Réinitialiser les soins quotidiens à minuit
+                // Vérifier si c'est un nouveau jour
                 Object.keys(newCareStatus).forEach(careType => {
                     if (careType === 'cordon') {
-                        if (newCareStatus.cordon.active && newCareStatus.cordon.lastDate !== today) {
-                            newCareStatus.cordon.morningDone = false;
-                            newCareStatus.cordon.eveningDone = false;
+                        if (newCareStatus.cordon.active &&
+                            (!newCareStatus.cordon.lastDate || newCareStatus.cordon.lastDate !== today)) {
+                            newCareStatus.cordon.morning_done = false;
+                            newCareStatus.cordon.evening_done = false;
                             newCareStatus.cordon.lastDate = today;
                             hasChanges = true;
                         }
-                    } else if (newCareStatus[careType].lastDate !== today) {
-                        newCareStatus[careType].done = false;
-                        newCareStatus[careType].lastDate = null;
-                        hasChanges = true;
+                    } else {
+                        if (!newCareStatus[careType].lastDate || newCareStatus[careType].lastDate !== today) {
+                            newCareStatus[careType].done = false;
+                            newCareStatus[careType].lastDate = today;
+                            newCareStatus[careType].last_updated = null;
+                            hasChanges = true;
+                        }
                     }
                 });
 
                 if (hasChanges) {
+                    console.log('Reset des soins pour nouveau jour:', today);
                     setDailyCare(newCareStatus);
-                    // Sauvegarder automatiquement la réinitialisation
                     saveDailyCareToFirebase(newCareStatus, today);
                 }
             };
@@ -2354,7 +2687,8 @@
                     const newStatus = !dailyCare[careType].done;
                     updatedCare[careType] = {
                         done: newStatus,
-                        last_updated: newStatus ? now : null
+                        last_updated: newStatus ? now : null,
+                        lastDate: newStatus ? today : null
                     };
                 }
 
@@ -2500,29 +2834,30 @@
                             return entry.type === 'feeding' && entryDate >= startDate && entryDate <= endDate;
                         });
 
-                        // Labels par semaine pour la vue mensuelle
+                        // Labels par jour pour la vue mensuelle (plus détaillée)
                         labels = [];
                         data = [];
-                        for (let w = 0; w < 4; w++) {
-                            const weekStart = new Date(startDate);
-                            weekStart.setDate(startDate.getDate() + (w * 7));
-                            const weekEnd = new Date(weekStart);
-                            weekEnd.setDate(weekStart.getDate() + 6);
-                            weekEnd.setHours(23, 59, 59, 999);
+                        for (let d = 0; d < 30; d++) {
+                            const currentDay = new Date(startDate);
+                            currentDay.setDate(startDate.getDate() + d);
 
-                            const weekLabel = `S${w + 1}`;
-                            labels.push(weekLabel);
+                            const dayStart = getDayStart(currentDay);
+                            const dayEnd = getDayEnd(currentDay);
 
-                            const weekTotal = filteredFeedings
+                            // Afficher que certains jours pour éviter l'encombrement
+                            const dayLabel = d % 5 === 0 ? currentDay.getDate().toString() : '';
+                            labels.push(dayLabel);
+
+                            const dayTotal = filteredFeedings
                                 .filter(feeding => {
                                     const feedingTime = new Date(feeding.timestamp);
-                                    return feedingTime >= weekStart && feedingTime <= weekEnd;
+                                    return feedingTime >= dayStart && feedingTime <= dayEnd;
                                 })
                                 .reduce((sum, feeding) => sum + parseInt(feeding.amount || 0), 0);
 
-                            data.push(weekTotal);
+                            data.push(dayTotal);
                         }
-                        labelFormat = 'Lait total par semaine';
+                        labelFormat = 'Lait total par jour';
                         break;
 
                     default:
@@ -2541,7 +2876,7 @@
                             tension: 0.4,
                             fill: true,
                             pointBackgroundColor: user?.gender === 'girl' ? '#ec4899' : '#3B82F6',
-                            pointRadius: periodView === 'daily' ? 2 : 4,
+                            pointRadius: periodView === 'daily' ? 2 : periodView === 'monthly' ? 1 : 4,
                             pointHoverRadius: 6
                         }]
                     },
@@ -2563,11 +2898,10 @@
                                 }
                             },
                             x: {
-                                ticks: { fontSize: 10 },
+                                ticks: { fontSize: periodView === 'monthly' ? 8 : 10 },
                                 title: {
                                     display: true,
-                                    text: periodView === 'daily' ? 'Heures' :
-                                        periodView === 'weekly' ? 'Jours' : 'Semaines'
+                                    text: periodView === 'daily' ? 'Heures' : 'Jours'
                                 }
                             }
                         },
@@ -3409,8 +3743,20 @@
                                                         </div>
 
                                                         <div className="flex items-center gap-1 text-xs text-blue-700 bg-blue-50 rounded px-2 py-1">
-                                                            <span>💡</span>
-                                                            <span>Encore faim avant 2h ? +10ml possible</span>
+
+                                                            {age <= 60 && (
+                                                                <div className="flex items-center gap-1 text-xs text-blue-700 bg-blue-50 rounded px-2 py-1">
+                                                                    <span>💡</span>
+                                                                    <span>
+                                                                        {age <= 14
+                                                                            ? "Encore faim avant 2h30 ? +10ml possible"
+                                                                            : age <= 30
+                                                                                ? "Encore faim avant 3h ? +10ml possible"
+                                                                                : "Encore faim avant 3h30 ? +10ml possible"
+                                                                        }
+                                                                    </span>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 ) : null;
@@ -3481,7 +3827,10 @@
                                 <div className="flex items-center justify-around">
                                     {/* Accueil */}
                                     <button
-                                        onClick={() => setCurrentView('daily')}
+                                        onClick={() => {
+                                            setCurrentView('daily');
+                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                        }}
                                         className={`flex flex-col items-center p-3 rounded-2xl transition-all ${currentView === 'daily'
                                             ? `text-${user?.gender === 'girl' ? 'pink' : 'blue'}-600`
                                             : 'text-gray-500'
@@ -3493,7 +3842,10 @@
 
                                     {/* Médical */}
                                     <button
-                                        onClick={() => setCurrentView('medical')}
+                                        onClick={() => {
+                                            setCurrentView('medical');
+                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                        }}
                                         className={`flex flex-col items-center p-3 rounded-2xl transition-all ${currentView === 'medical'
                                             ? 'text-green-600'
                                             : 'text-gray-500'
@@ -3557,7 +3909,10 @@
                                     </div>
                                     {/* Conseils */}
                                     <button
-                                        onClick={() => setCurrentView('tips')}
+                                        onClick={() => {
+                                            setCurrentView('tips');
+                                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                                        }}
                                         className={`flex flex-col items-center p-3 rounded-2xl transition-all ${currentView === 'tips'
                                             ? 'text-amber-600'
                                             : 'text-gray-500'
@@ -3588,6 +3943,7 @@
                                                     onClick={() => {
                                                         setCurrentView('food');
                                                         setShowMoreMenu(false);
+                                                        window.scrollTo({ top: 0, behavior: 'smooth' });
                                                     }}
                                                     className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3"
                                                 >
@@ -3598,6 +3954,7 @@
                                                     onClick={() => {
                                                         setCurrentView('supplies');
                                                         setShowMoreMenu(false);
+                                                        window.scrollTo({ top: 0, behavior: 'smooth' });
                                                     }}
                                                     className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3"
                                                 >
@@ -3608,6 +3965,7 @@
                                                     onClick={() => {
                                                         setCurrentView('wardrobe');
                                                         setShowMoreMenu(false);
+                                                        window.scrollTo({ top: 0, behavior: 'smooth' });
                                                     }}
                                                     className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3"
                                                 >
@@ -3819,39 +4177,43 @@
 
                                 })()}
 
-                                {/* Graphique quotidien moderne */}
-                                {periodView === 'daily' && (
-                                    <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-white/20 mb-6 relative overflow-hidden">
-                                        {/* Background décoratif */}
-                                        <div className={`absolute top-0 right-0 w-16 h-16 opacity-5 rounded-full -translate-y-4 translate-x-4 ${user?.gender === 'girl' ? 'bg-pink-500' : 'bg-blue-500'}`} />
 
-                                        <div className="relative">
-                                            {/* Header du graphique */}
-                                            <div className="flex items-center justify-between mb-4">
-                                                <div className="flex items-center gap-2">
-                                                    <div className={`w-8 h-8 ${themeColors.primaryLight} rounded-xl flex items-center justify-center`}>
-                                                        <span className="text-sm">📊</span>
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="font-bold text-gray-900">
-                                                            {periodView === 'daily' ? 'Évolution quotidienne' :
-                                                                periodView === 'weekly' ? 'Évolution sur 7 jours' :
-                                                                    'Évolution sur 30 jours'}
-                                                        </h4>
-                                                        <p className="text-xs text-gray-500">Lait consommé par heure</p>
-                                                    </div>
+                                {/* Graphique lait moderne - toujours affiché */}
+                                <div className="bg-white/95 backdrop-blur-sm rounded-3xl p-5 shadow-xl border border-white/20 mb-6 relative overflow-hidden">
+                                    {/* Background décoratif */}
+                                    <div className={`absolute top-0 right-0 w-16 h-16 opacity-5 rounded-full -translate-y-4 translate-x-4 ${user?.gender === 'girl' ? 'bg-pink-500' : 'bg-blue-500'}`} />
+
+                                    <div className="relative">
+                                        {/* Header du graphique */}
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-8 h-8 ${themeColors.primaryLight} rounded-xl flex items-center justify-center`}>
+                                                    <span className="text-sm">📊</span>
                                                 </div>
-                                                <div className={`${themeColors.primaryBg} text-white px-3 py-1 rounded-full text-xs font-bold`}>
-                                                    TEMPS RÉEL
+                                                <div>
+                                                    <h4 className="font-bold text-gray-900">
+                                                        {periodView === 'daily' ? 'Évolution quotidienne' :
+                                                            periodView === 'weekly' ? 'Évolution sur 7 jours' :
+                                                                'Évolution sur 30 jours'}
+                                                    </h4>
+                                                    <p className="text-xs text-gray-500">
+                                                        {periodView === 'daily' ? 'Lait consommé par heure' : 'Lait consommé par jour'}
+                                                    </p>
                                                 </div>
                                             </div>
-
-                                            {/* Zone du graphique */}
-                                            <div className="h-40 mb-4 bg-gradient-to-b from-gray-50 to-gray-100 rounded-2xl p-4 flex items-center justify-center">
-                                                <canvas ref={chartRef} className="w-full h-full"></canvas>
+                                            <div className={`${themeColors.primaryBg} text-white px-3 py-1 rounded-full text-xs font-bold`}>
+                                                TEMPS RÉEL
                                             </div>
-                                            {/* Résumé sous le graphique */}
-                                            {(() => {
+                                        </div>
+
+                                        {/* Zone du graphique */}
+                                        <div className="h-40 mb-4 bg-gradient-to-b from-gray-50 to-gray-100 rounded-2xl p-4 flex items-center justify-center">
+                                            <canvas ref={chartRef} className="w-full h-full"></canvas>
+                                        </div>
+
+                                        {/* Résumé sous le graphique */}
+                                        {(() => {
+                                            if (periodView === 'daily') {
                                                 const currentStats = getStats('daily');
                                                 const now = new Date();
                                                 const dayStart = getDayStart(now);
@@ -3914,10 +4276,46 @@
                                                         <p className="text-xs text-gray-400">Ajoutez un biberon pour voir le graphique</p>
                                                     </div>
                                                 );
-                                            })()}
-                                        </div>
+                                            } else {
+                                                // Pour les vues hebdomadaires et mensuelles
+                                                const currentStats = getStats(periodView === 'weekly' ? 'weekly' : 'monthly');
+                                                const feedingCount = currentStats.feedingCount;
+                                                const totalMilk = currentStats.totalMilk;
+
+                                                return feedingCount > 0 ? (
+                                                    <div className="grid grid-cols-3 gap-3">
+                                                        <div className="text-center">
+                                                            <div className={`text-lg font-bold ${themeColors.primaryText}`}>
+                                                                {feedingCount}
+                                                            </div>
+                                                            <div className="text-xs text-gray-600">Biberons</div>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <div className="text-lg font-bold text-gray-800">
+                                                                {totalMilk}ml
+                                                            </div>
+                                                            <div className="text-xs text-gray-600">Total</div>
+                                                        </div>
+                                                        <div className="text-center">
+                                                            <div className="text-lg font-bold text-gray-800">
+                                                                {Math.round(totalMilk / feedingCount)}ml
+                                                            </div>
+                                                            <div className="text-xs text-gray-600">Moyenne</div>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center py-6">
+                                                        <div className="text-4xl mb-2">🍼</div>
+                                                        <p className="text-sm text-gray-500 font-medium">
+                                                            {periodView === 'weekly' ? 'Aucun biberon sur 7 jours' : 'Aucun biberon sur 30 jours'}
+                                                        </p>
+                                                        <p className="text-xs text-gray-400">Ajoutez des biberons pour voir le graphique</p>
+                                                    </div>
+                                                );
+                                            }
+                                        })()}
                                     </div>
-                                )}
+                                </div>
                                 {/* Panneau notifications */}
                                 {notificationPermission !== 'granted' && (
                                     <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-4">
@@ -4273,7 +4671,16 @@
                             <div className="space-y-4">
                                 {/* Header avec style unifié */}
                                 <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-lg border border-white/50 p-4">
-                                    <h2 className="text-xl font-bold text-gray-900 mb-4">Suivi médical</h2>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h2 className="text-xl font-bold text-gray-900">Suivi médical</h2>
+                                        <button
+                                            onClick={() => setShowExportMenu(true)}
+                                            className="bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-lg active:scale-95 transition-transform flex items-center gap-2"
+                                        >
+                                            <i className="fas fa-download"></i>
+                                            Export pédiatre
+                                        </button>
+                                    </div>
 
                                     {/* Boutons actions dans des cartes */}
                                     <div className="grid grid-cols-2 gap-3">
@@ -5339,6 +5746,7 @@
                                 )}
                             </div>
                         )}
+
                         {/* Vue Mise à jour de la taille */}
                         {currentView === 'height-update' && (
                             <div className="space-y-6">
@@ -5406,6 +5814,7 @@
                                 )}
                             </div>
                         )}
+
                         {/* Formulaire médicament */}
                         {currentView === 'medication-form' && (
                             <div className="space-y-6">
