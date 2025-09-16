@@ -3,25 +3,28 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>BabyTrack</title>
-
+    
     <!-- PWA Configuration -->
-    <link rel="icon" type="image/png" href="logo.PNG" />
-    <link rel="apple-touch-icon" href="logo.PNG" />
-    <link rel="apple-touch-icon" sizes="180x180" href="logo.PNG" />
     <link rel="manifest" href="manifest.json">
-
-
-    <!-- PWA Métadonnées -->
+    <meta name="theme-color" content="#3B82F6">
+    
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" href="logo.PNG">
+    
+    <!-- Apple iOS Configuration -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="BabyTrack">
-    <meta name="theme-color" content="#3B82F6">
+    <link rel="apple-touch-icon" sizes="152x152" href="logo.PNG">
+    <link rel="apple-touch-icon" sizes="180x180" href="logo.PNG">
+    <link rel="apple-touch-icon" sizes="192x192" href="logo.PNG">
+    
+    <!-- Mobile Web App -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-
+    
     <!-- Scripts et styles -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -59,7 +62,6 @@
                 opacity: 0;
                 transform: translateY(10px);
             }
-
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -71,12 +73,9 @@
         }
 
         @keyframes pulse-gentle {
-
-            0%,
-            100% {
+            0%, 100% {
                 opacity: 1;
             }
-
             50% {
                 opacity: 0.7;
             }
@@ -113,8 +112,7 @@
         <defs>
             <symbol id="logo-symbol" viewBox="0 0 200 120">
                 <!-- Montre/cadre -->
-                <rect x="20" y="30" width="100" height="60" rx="20" ry="20" fill="url(#gradient1)" stroke="#2563eb"
-                    stroke-width="4" />
+                <rect x="20" y="30" width="100" height="60" rx="20" ry="20" fill="url(#gradient1)" stroke="#2563eb" stroke-width="4" />
                 <rect x="25" y="35" width="90" height="50" rx="15" ry="15" fill="white" />
 
                 <!-- Visage bébé -->
@@ -1677,6 +1675,27 @@
                     setNotificationPermission(Notification.permission);
                 }
             }, []);
+           
+           useEffect(() => {
+        // Détection iOS pour les notifications
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        
+        if (isIOS) {
+            // Message spécifique pour iOS
+            console.log('iOS détecté - PWA mode');
+            
+            // Vérifier si l'app est en mode PWA
+            const isStandalone = window.navigator.standalone === true;
+            if (!isStandalone) {
+                // Suggérer d'ajouter à l'écran d'accueil après 5 secondes
+                setTimeout(() => {
+                    if (window.confirm('Pour une meilleure expérience, ajoutez BabyTrack à votre écran d\'accueil !')) {
+                        alert('Appuyez sur le bouton Partager puis "Sur l\'écran d\'accueil"');
+                    }
+                }, 5000);
+            }
+        }
+    }, []);
             // Authentification
             const handleCreateAccount = async () => {
                 const { babyName, birthDate, birthTime, birthWeight, birthHeight, parents, gender } = authData;
@@ -1976,7 +1995,7 @@
                     setIsExporting(false);
                 }
             };
-            
+
             const logout = () => {
                 setUser(null);
                 localStorage.removeItem('familyCode');
