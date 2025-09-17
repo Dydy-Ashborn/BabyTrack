@@ -917,12 +917,7 @@
         return date >= start && date <= end;
     };
 
-    console.log('=== FILTER DEBUG ===');
-    console.log('Current date (now):', now);
-    console.log('Filter type:', historyFilter);
-    console.log('Start date:', startDate);
-    console.log('End date:', endDate);
-    console.log('Today in YYYY-MM-DD:', now.toISOString().split('T')[0]);
+
 
     // Filtrer les entrées normales (biberon, couche)
     const filteredEntries = entries.filter(entry => {
@@ -980,9 +975,7 @@
 
     const totalFiltered = filteredEntries.length + filteredSleep.length + 
                          filteredBreastfeeding.length + filteredBreastPump.length;
-    
-    console.log('Total filtered items:', totalFiltered);
-    console.log('=== END DEBUG ===');
+ 
 
     // Combiner et trier par timestamp (plus récent en premier)
     const allEntries = [...filteredEntries, ...filteredSleep, ...filteredBreastfeeding, ...filteredBreastPump];
