@@ -560,7 +560,10 @@
             // Fonctions utilitaires
             const generateCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
             const getCurrentTime = () => new Date().toTimeString().slice(0, 5);
-            const getCurrentDate = () => new Date().toISOString().slice(0, 10);
+        const getCurrentDate = () => {
+    const now = new Date();
+    return now.toLocaleDateString('sv-SE'); // Format YYYY-MM-DD en heure locale
+};
 
 
             const calculateAge = () => {
@@ -868,77 +871,128 @@
                 return { sessions, totalHours, averageHours };
             };
             // Filtrage de l'historique avec pagination
-            const getFilteredHistory = () => {
-                const now = new Date();
-                let startDate, endDate;
+           const getFilteredHistory = () => {
+    const now = new Date();
+    let startDate, endDate;
 
-                switch (historyFilter) {
-                    case 'today':
-                        startDate = getDayStart(now);
-                        endDate = getDayEnd(now);
-                        break;
-                    case 'yesterday':
-                        const yesterday = new Date(now);
-                        yesterday.setDate(yesterday.getDate() - 1);
-                        startDate = getDayStart(yesterday);
-                        endDate = getDayEnd(yesterday);
-                        break;
-                    case 'week':
-                        startDate = new Date(now);
-                        startDate.setDate(startDate.getDate() - 7);
-                        startDate.setHours(0, 0, 0, 0);
-                        endDate = getDayEnd(now);
-                        break;
-                    default:
-                        startDate = new Date(0);
-                        endDate = new Date();
-                }
+    switch (historyFilter) {
+        case 'today':
+            startDate = getDayStart(now);
+            endDate = getDayEnd(now);
+            break;
+        case 'yesterday':
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+            startDate = getDayStart(yesterday);
+            endDate = getDayEnd(yesterday);
+            break;
+        case 'week':
+            startDate = new Date(now);
+            startDate.setDate(startDate.getDate() - 7);
+            startDate.setHours(0, 0, 0, 0);
+            endDate = getDayEnd(now);
+            break;
+        default:
+            startDate = new Date(0);
+            endDate = new Date();
+    }
 
-                // Filtrer les entrées normales (biberon, couche)
-                const filteredEntries = entries.filter(entry => {
-                    const entryDate = new Date(entry.timestamp);
-                    return entryDate >= startDate && entryDate <= endDate;
-                });
+    // Fonction helper pour parser les timestamps correctement
+    const parseTimestamp = (timestamp) => {
+        if (!timestamp) return null;
+        
+        // Si le timestamp contient déjà un fuseau horaire, l'utiliser tel quel
+        if (timestamp.includes('Z') || timestamp.includes('+') || timestamp.includes('-')) {
+            return new Date(timestamp);
+        }
+        
+        // Sinon, le traiter comme heure locale
+        return new Date(timestamp);
+    };
 
-                // Filtrer les sessions de sommeil terminées
-                const filteredSleep = sleepSessions.filter(session => {
-                    if (!session.startTime || session.status !== 'completed') return false;
-                    const sessionDate = new Date(session.startTime);
-                    return sessionDate >= startDate && sessionDate <= endDate;
-                }).map(session => ({
-                    ...session,
-                    type: 'sleep',
-                    timestamp: session.startTime
-                }));
+    // Fonction helper pour vérifier si une date est dans la plage
+    const isInDateRange = (timestamp, start, end) => {
+        const date = parseTimestamp(timestamp);
+        if (!date || isNaN(date.getTime())) return false;
+        return date >= start && date <= end;
+    };
 
-                // Filtrer les tétées TERMINÉES (comme le sommeil)
-                const filteredBreastfeeding = breastfeedingEntries.filter(entry => {
-                    if (!entry.timestamp || entry.status !== 'completed') return false; // Seulement les terminées
-                    const entryDate = new Date(entry.timestamp);
-                    return entryDate >= startDate && entryDate <= endDate;
-                }).map(entry => ({
-                    ...entry,
-                    type: 'breastfeeding',
-                    timestamp: entry.timestamp
-                }));
+    console.log('=== FILTER DEBUG ===');
+    console.log('Current date (now):', now);
+    console.log('Filter type:', historyFilter);
+    console.log('Start date:', startDate);
+    console.log('End date:', endDate);
+    console.log('Today in YYYY-MM-DD:', now.toISOString().split('T')[0]);
 
-                // Filtrer les sessions tire-lait (comme les couches - pas de statut)
-                const filteredBreastPump = breastPumpEntries.filter(entry => {
-                    if (!entry.timestamp) return false; // Pas de vérification de statut
-                    const entryDate = new Date(entry.timestamp);
-                    return entryDate >= startDate && entryDate <= endDate;
-                }).map(entry => ({
-                    ...entry,
-                    type: 'breast_pump',
-                    timestamp: entry.timestamp
-                }));
+    // Filtrer les entrées normales (biberon, couche)
+    const filteredEntries = entries.filter(entry => {
+        const parsedDate = parseTimestamp(entry.timestamp);
+        const inRange = isInDateRange(entry.timestamp, startDate, endDate);
+        
+        console.log('Entry details:', {
+            type: entry.type,
+            originalTimestamp: entry.timestamp,
+            parsedDate: parsedDate,
+            entryDateString: parsedDate?.toISOString().split('T')[0],
+            inRange: inRange,
+            greaterThanStart: parsedDate >= startDate,
+            lessThanEnd: parsedDate <= endDate
+        });
+        
+        return inRange;
+    });
 
-                // Combiner et trier par timestamp (plus récent en premier)
-                return [...filteredEntries, ...filteredSleep, ...filteredBreastfeeding, ...filteredBreastPump].sort((a, b) =>
-                    new Date(b.timestamp) - new Date(a.timestamp)
-                );
-            };
-            // Vérification connexion au chargement
+    // Filtrer les sessions de sommeil terminées
+    const filteredSleep = sleepSessions.filter(session => {
+        if (!session.startTime || session.status !== 'completed') return false;
+        const inRange = isInDateRange(session.startTime, startDate, endDate);
+        console.log('Sleep:', session.startTime, 'in range:', inRange);
+        return inRange;
+    }).map(session => ({
+        ...session,
+        type: 'sleep',
+        timestamp: session.startTime
+    }));
+
+    // Filtrer les tétées terminées
+    const filteredBreastfeeding = breastfeedingEntries.filter(entry => {
+        if (!entry.timestamp || entry.status !== 'completed') return false;
+        const inRange = isInDateRange(entry.timestamp, startDate, endDate);
+        console.log('Breastfeeding:', entry.timestamp, 'in range:', inRange);
+        return inRange;
+    }).map(entry => ({
+        ...entry,
+        type: 'breastfeeding',
+        timestamp: entry.timestamp
+    }));
+
+    // Filtrer les sessions tire-lait
+    const filteredBreastPump = breastPumpEntries.filter(entry => {
+        if (!entry.timestamp) return false;
+        const inRange = isInDateRange(entry.timestamp, startDate, endDate);
+        console.log('Breast pump:', entry.timestamp, 'in range:', inRange);
+        return inRange;
+    }).map(entry => ({
+        ...entry,
+        type: 'breast_pump',
+        timestamp: entry.timestamp
+    }));
+
+    const totalFiltered = filteredEntries.length + filteredSleep.length + 
+                         filteredBreastfeeding.length + filteredBreastPump.length;
+    
+    console.log('Total filtered items:', totalFiltered);
+    console.log('=== END DEBUG ===');
+
+    // Combiner et trier par timestamp (plus récent en premier)
+    const allEntries = [...filteredEntries, ...filteredSleep, ...filteredBreastfeeding, ...filteredBreastPump];
+    
+    return allEntries.sort((a, b) => {
+        const dateA = parseTimestamp(a.timestamp);
+        const dateB = parseTimestamp(b.timestamp);
+        return dateB - dateA;
+    });
+};// Vérification connexion au chargement
             useEffect(() => {
                 const savedCode = localStorage.getItem('familyCode');
                 if (savedCode) {
@@ -1664,50 +1718,51 @@ ${allExportEntries.length > 0
             };
 
             const saveEntry = async () => {
-                const { time, date, amount, hasPee, hasPoop, poopQuantity, poopConsistency, poopColor } = formData;
+    const { time, date, amount, hasPee, hasPoop, poopQuantity, poopConsistency, poopColor } = formData;
 
-                if (!time || !date) {
-                    alert('Heure et date obligatoires');
-                    return;
-                }
+    if (!time || !date) {
+        alert('Heure et date obligatoires');
+        return;
+    }
 
-                if (formType === 'feeding' && !amount) {
-                    alert('Quantité obligatoire pour le biberon');
-                    return;
-                }
+    if (formType === 'feeding' && !amount) {
+        alert('Quantité obligatoire pour le biberon');
+        return;
+    }
 
-                if (formType === 'diaper' && !hasPee && !hasPoop) {
-                    alert('Indiquez au moins pipi ou caca');
-                    return;
-                }
+    if (formType === 'diaper' && !hasPee && !hasPoop) {
+        alert('Indiquez au moins pipi ou caca');
+        return;
+    }
 
-                const entry = {
-                    type: formType,
-                    timestamp: new Date(`${date}T${time}:00`).toISOString(),
-                    familyCode: user.code, // Ajout du code famille
-                    hasPee,
-                    hasPoop,
-                    poopQuantity,
-                    poopConsistency,
-                    poopColor
-                };
+    const entry = {
+        type: formType,
+        // CORRECTION ICI : Créer le timestamp sans conversion UTC automatique
+        timestamp: `${date}T${time}:00`,
+        familyCode: user.code,
+        hasPee,
+        hasPoop,
+        poopQuantity,
+        poopConsistency,
+        poopColor
+    };
 
-                if (formType === 'feeding') {
-                    entry.amount = parseInt(amount);
-                }
+    if (formType === 'feeding') {
+        entry.amount = parseInt(amount);
+    }
 
-                try {
-                    if (editingId) {
-                        await db.collection('entries').doc(editingId).update(entry);
-                    } else {
-                        await db.collection('entries').add(entry);
-                    }
-                    closeForm();
-                } catch (error) {
-                    console.error('Erreur sauvegarde:', error);
-                    alert('Erreur lors de la sauvegarde');
-                }
-            };
+    try {
+        if (editingId) {
+            await db.collection('entries').doc(editingId).update(entry);
+        } else {
+            await db.collection('entries').add(entry);
+        }
+        closeForm();
+    } catch (error) {
+        console.error('Erreur sauvegarde:', error);
+        alert('Erreur lors de la sauvegarde');
+    }
+};
             const deleteEntry = async (entryId) => {
                 if (!confirm('Supprimer cette entrée ?')) return;
 
