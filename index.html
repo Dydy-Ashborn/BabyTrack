@@ -1164,6 +1164,7 @@
                     // Sleep sessions
                     db.collection('sleep_sessions')
                         .where('familyCode', '==', familyCode)
+                        .orderBy('timestamp', 'desc')
                         .limit(30)
                         .get(),
 
@@ -1223,7 +1224,7 @@
                             ongoingSleep = sessionData;
                         }
                     });
-                    sleepData.sort((a, b) => new Date(b.timestamp || b.startTime) - new Date(a.timestamp || a.startTime));
+                    // Plus besoin de tri car déjà fait par orderBy
                     setSleepSessions(sleepData);
                     setCurrentSleep(ongoingSleep);
 
@@ -1325,6 +1326,7 @@
                 // Sleep
                 const sleepUnsubscribe = db.collection('sleep_sessions')
                     .where('familyCode', '==', familyCode)
+                    .orderBy('timestamp', 'desc')
                     .limit(30)
                     .onSnapshot((snapshot) => {
                         const sleepData = [];
@@ -1339,12 +1341,11 @@
                             }
                         });
 
-                        sleepData.sort((a, b) => new Date(b.timestamp || b.startTime) - new Date(a.timestamp || a.startTime));
+                        // Plus besoin de tri car déjà fait par orderBy
                         setSleepSessions(sleepData);
                         setCurrentSleep(ongoingSession);
                     });
                 unsubscribers.push(sleepUnsubscribe);
-
                 // Breastfeeding
                 const breastfeedingUnsubscribe = db.collection('breastfeeding')
                     .where('familyCode', '==', familyCode)
@@ -2435,7 +2436,12 @@ ${allExportEntries.length > 0
             const formatSleepDuration = (minutes) => {
                 const hours = Math.floor(minutes / 60);
                 const mins = minutes % 60;
-                return hours > 0 ? `${hours}h${mins.toString().padStart(2, '0')}` : `${mins}min`;
+
+                if (hours > 0) {
+                    return `${hours}h${mins.toString().padStart(2, '0')}`;
+                } else {
+                    return `${mins}min`;
+                }
             };
             // Nouveau graphique croissance à ajouter après formatSleepDuration
             const GrowthChart = () => {
@@ -4029,7 +4035,9 @@ ${allExportEntries.length > 0
                                     // Sommeil (si il y en a eu aujourd'hui)
                                     if (todaySleep.length > 0) {
                                         const totalMinutes = todaySleep.reduce((sum, session) => sum + (session.duration || 0), 0);
-                                        const totalHours = Math.round(totalMinutes / 60 * 10) / 10;
+                                        const totalHours = Math.floor(totalMinutes / 60);
+                                        const totalMins = totalMinutes % 60;
+
                                         cards.push(
                                             <div key="sleep" className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/30 relative overflow-hidden">
                                                 <div className="relative">
@@ -4040,8 +4048,7 @@ ${allExportEntries.length > 0
                                                     </div>
                                                     <div className="text-center">
                                                         <div className="text-xl font-bold text-gray-900 mb-1">
-                                                            {totalHours}
-                                                            <span className="text-sm font-medium text-gray-600">h</span>
+                                                            {totalHours > 0 ? `${totalHours}h${totalMins.toString().padStart(2, '0')}` : `${totalMins}min`}
                                                         </div>
                                                         <div className="text-xs font-medium text-gray-500">Sommeil</div>
                                                         <div className="text-xs text-gray-400 mt-1">
@@ -4052,7 +4059,6 @@ ${allExportEntries.length > 0
                                             </div>
                                         );
                                     }
-
                                     return (
                                         <div className="grid grid-cols-3 gap-3 mb-6">
                                             {cards}
@@ -6870,7 +6876,7 @@ ${allExportEntries.length > 0
                                         {/* Message de remerciement */}
                                         <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-2 mb-4">
                                             <p className="text-[10px] text-gray-600 leading-relaxed">
-                                                 Merci d'utiliser BabyTrack !
+                                                Merci d'utiliser BabyTrack !
                                             </p>
                                         </div>
 
