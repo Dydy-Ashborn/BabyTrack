@@ -126,6 +126,126 @@
             border-color: #f59e0b;
             background-color: #fffbeb;
         }
+
+        /* Animations pour les accomplissements */
+        @keyframes float-gentle {
+
+            0%,
+            100% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-8px);
+            }
+        }
+
+        @keyframes rotate-slow {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes shake-head {
+
+            0%,
+            100% {
+                transform: rotate(0deg);
+            }
+
+            25% {
+                transform: rotate(-5deg);
+            }
+
+            75% {
+                transform: rotate(5deg);
+            }
+        }
+
+        @keyframes bounce-gentle {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-5px);
+            }
+        }
+
+        @keyframes pulse-soft {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        @keyframes swing {
+
+            0%,
+            100% {
+                transform: rotate(0deg);
+            }
+
+            25% {
+                transform: rotate(10deg);
+            }
+
+            75% {
+                transform: rotate(-10deg);
+            }
+        }
+
+        @keyframes slide-lr {
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-5px);
+            }
+
+            75% {
+                transform: translateX(5px);
+            }
+        }
+
+        @keyframes peek-a-boo {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.3;
+                transform: scale(0.8);
+            }
+        }
+
+        .accomplishment-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+        }
     </style>
 
     <!-- Logo BabyTrack en SVG -->
@@ -344,6 +464,10 @@
             const [milkDateInput, setMilkDateInput] = useState('');
             const [waterDateTimeInput, setWaterDateTimeInput] = useState('');
 
+            const [showUpdatePopup, setShowUpdatePopup] = useState(false);
+            const [showPWAPopup, setShowPWAPopup] = useState(false);
+            const [pwaPopupType, setPwaPopupType] = useState(''); // 'suggest' ou 'instructions'
+
             // Données des accomplissements par âge et catégorie
             const accomplishmentData = {
                 '2months': {
@@ -451,13 +575,18 @@
             const breastfeedingChartInstance = useRef(null);
             const sleepAnalyticsChartInstance = useRef(null);
             const foodChartInstance = useRef(null);
+
+            const [isLoading, setIsLoading] = useState(true);
+
+            // États pour le déblocage des accomplissements
+            const [showMilestoneUnlock, setShowMilestoneUnlock] = useState(false);
+            const [unlockedMilestone, setUnlockedMilestone] = useState(null);
             // Demander la permission pour les notifications
             const requestNotificationPermission = async () => {
                 if ('Notification' in window) {
                     const permission = await Notification.requestPermission();
                     setNotificationPermission(permission);
                     if (permission === 'granted') {
-                        console.log('Notifications autorisées');
                         scheduleAllNotifications();
                     }
                     return permission === 'granted';
@@ -468,14 +597,12 @@
             const scheduleAllNotifications = () => {
                 if (notificationPermission !== 'granted') return;
 
-                console.log('Programmation de toutes les notifications...');
 
                 // Effacer les anciennes notifications
                 clearAllNotifications();
 
 
 
-                console.log(`${scheduledNotifications.size} notifications programmées`);
             };
 
             // Envoyer une notification immédiate
@@ -524,7 +651,6 @@
                     return newMap;
                 });
 
-                console.log(`Notification programmée: ${title} dans ${delayMinutes} minutes`);
                 return timeoutId;
             };
 
@@ -560,17 +686,23 @@
             // Fonctions utilitaires
             const generateCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
             const getCurrentTime = () => new Date().toTimeString().slice(0, 5);
-        const getCurrentDate = () => {
-    const now = new Date();
-    return now.toLocaleDateString('sv-SE'); // Format YYYY-MM-DD en heure locale
-};
+            const getCurrentDate = () => {
+                const now = new Date();
+                return now.toLocaleDateString('sv-SE'); // Format YYYY-MM-DD en heure locale
+            };
 
 
             const calculateAge = () => {
                 if (!user) return 0;
                 const birth = new Date(user.birthDate);
+                birth.setHours(0, 0, 0, 0); // Réinitialiser à minuit
                 const today = new Date();
-                return Math.floor((today - birth) / (1000 * 60 * 60 * 24));
+                today.setHours(0, 0, 0, 0); // Réinitialiser à minuit
+
+                const diffTime = today - birth;
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+                return diffDays;
             };
 
             const formatAgeDisplay = (ageInDays) => {
@@ -871,128 +1003,118 @@
                 return { sessions, totalHours, averageHours };
             };
             // Filtrage de l'historique avec pagination
-           const getFilteredHistory = () => {
-    const now = new Date();
-    let startDate, endDate;
+            const getFilteredHistory = () => {
+                const now = new Date();
+                let startDate, endDate;
 
-    switch (historyFilter) {
-        case 'today':
-            startDate = getDayStart(now);
-            endDate = getDayEnd(now);
-            break;
-        case 'yesterday':
-            const yesterday = new Date(now);
-            yesterday.setDate(yesterday.getDate() - 1);
-            startDate = getDayStart(yesterday);
-            endDate = getDayEnd(yesterday);
-            break;
-        case 'week':
-            startDate = new Date(now);
-            startDate.setDate(startDate.getDate() - 7);
-            startDate.setHours(0, 0, 0, 0);
-            endDate = getDayEnd(now);
-            break;
-        default:
-            startDate = new Date(0);
-            endDate = new Date();
-    }
+                switch (historyFilter) {
+                    case 'today':
+                        startDate = getDayStart(now);
+                        endDate = getDayEnd(now);
+                        break;
+                    case 'yesterday':
+                        const yesterday = new Date(now);
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        startDate = getDayStart(yesterday);
+                        endDate = getDayEnd(yesterday);
+                        break;
+                    case 'week':
+                        startDate = new Date(now);
+                        startDate.setDate(startDate.getDate() - 7);
+                        startDate.setHours(0, 0, 0, 0);
+                        endDate = getDayEnd(now);
+                        break;
+                    default:
+                        startDate = new Date(0);
+                        endDate = new Date();
+                }
 
-    // Fonction helper pour parser les timestamps correctement
-    const parseTimestamp = (timestamp) => {
-        if (!timestamp) return null;
-        
-        // Si le timestamp contient déjà un fuseau horaire, l'utiliser tel quel
-        if (timestamp.includes('Z') || timestamp.includes('+') || timestamp.includes('-')) {
-            return new Date(timestamp);
-        }
-        
-        // Sinon, le traiter comme heure locale
-        return new Date(timestamp);
-    };
+                // Fonction helper pour parser les timestamps correctement
+                const parseTimestamp = (timestamp) => {
+                    if (!timestamp) return null;
 
-    // Fonction helper pour vérifier si une date est dans la plage
-    const isInDateRange = (timestamp, start, end) => {
-        const date = parseTimestamp(timestamp);
-        if (!date || isNaN(date.getTime())) return false;
-        return date >= start && date <= end;
-    };
+                    // Si le timestamp contient déjà un fuseau horaire, l'utiliser tel quel
+                    if (timestamp.includes('Z') || timestamp.includes('+') || timestamp.includes('-')) {
+                        return new Date(timestamp);
+                    }
+
+                    // Sinon, le traiter comme heure locale
+                    return new Date(timestamp);
+                };
+
+                // Fonction helper pour vérifier si une date est dans la plage
+                const isInDateRange = (timestamp, start, end) => {
+                    const date = parseTimestamp(timestamp);
+                    if (!date || isNaN(date.getTime())) return false;
+                    return date >= start && date <= end;
+                };
 
 
 
-    // Filtrer les entrées normales (biberon, couche)
-    const filteredEntries = entries.filter(entry => {
-        const parsedDate = parseTimestamp(entry.timestamp);
-        const inRange = isInDateRange(entry.timestamp, startDate, endDate);
-        
-        console.log('Entry details:', {
-            type: entry.type,
-            originalTimestamp: entry.timestamp,
-            parsedDate: parsedDate,
-            entryDateString: parsedDate?.toISOString().split('T')[0],
-            inRange: inRange,
-            greaterThanStart: parsedDate >= startDate,
-            lessThanEnd: parsedDate <= endDate
-        });
-        
-        return inRange;
-    });
+                // Filtrer les entrées normales (biberon, couche)
+                const filteredEntries = entries.filter(entry => {
+                    const parsedDate = parseTimestamp(entry.timestamp);
+                    const inRange = isInDateRange(entry.timestamp, startDate, endDate);
 
-    // Filtrer les sessions de sommeil terminées
-    const filteredSleep = sleepSessions.filter(session => {
-        if (!session.startTime || session.status !== 'completed') return false;
-        const inRange = isInDateRange(session.startTime, startDate, endDate);
-        console.log('Sleep:', session.startTime, 'in range:', inRange);
-        return inRange;
-    }).map(session => ({
-        ...session,
-        type: 'sleep',
-        timestamp: session.startTime
-    }));
 
-    // Filtrer les tétées terminées
-    const filteredBreastfeeding = breastfeedingEntries.filter(entry => {
-        if (!entry.timestamp || entry.status !== 'completed') return false;
-        const inRange = isInDateRange(entry.timestamp, startDate, endDate);
-        console.log('Breastfeeding:', entry.timestamp, 'in range:', inRange);
-        return inRange;
-    }).map(entry => ({
-        ...entry,
-        type: 'breastfeeding',
-        timestamp: entry.timestamp
-    }));
+                    return inRange;
+                });
 
-    // Filtrer les sessions tire-lait
-    const filteredBreastPump = breastPumpEntries.filter(entry => {
-        if (!entry.timestamp) return false;
-        const inRange = isInDateRange(entry.timestamp, startDate, endDate);
-        console.log('Breast pump:', entry.timestamp, 'in range:', inRange);
-        return inRange;
-    }).map(entry => ({
-        ...entry,
-        type: 'breast_pump',
-        timestamp: entry.timestamp
-    }));
+                // Filtrer les sessions de sommeil terminées
+                const filteredSleep = sleepSessions.filter(session => {
+                    if (!session.startTime || session.status !== 'completed') return false;
+                    const inRange = isInDateRange(session.startTime, startDate, endDate);
+                    return inRange;
+                }).map(session => ({
+                    ...session,
+                    type: 'sleep',
+                    timestamp: session.startTime
+                }));
 
-    const totalFiltered = filteredEntries.length + filteredSleep.length + 
-                         filteredBreastfeeding.length + filteredBreastPump.length;
- 
+                // Filtrer les tétées terminées
+                const filteredBreastfeeding = breastfeedingEntries.filter(entry => {
+                    if (!entry.timestamp || entry.status !== 'completed') return false;
+                    const inRange = isInDateRange(entry.timestamp, startDate, endDate);
+                    return inRange;
+                }).map(entry => ({
+                    ...entry,
+                    type: 'breastfeeding',
+                    timestamp: entry.timestamp
+                }));
 
-    // Combiner et trier par timestamp (plus récent en premier)
-    const allEntries = [...filteredEntries, ...filteredSleep, ...filteredBreastfeeding, ...filteredBreastPump];
-    
-    return allEntries.sort((a, b) => {
-        const dateA = parseTimestamp(a.timestamp);
-        const dateB = parseTimestamp(b.timestamp);
-        return dateB - dateA;
-    });
-};// Vérification connexion au chargement
+                // Filtrer les sessions tire-lait
+                const filteredBreastPump = breastPumpEntries.filter(entry => {
+                    if (!entry.timestamp) return false;
+                    const inRange = isInDateRange(entry.timestamp, startDate, endDate);
+                    return inRange;
+                }).map(entry => ({
+                    ...entry,
+                    type: 'breast_pump',
+                    timestamp: entry.timestamp
+                }));
+
+                const totalFiltered = filteredEntries.length + filteredSleep.length +
+                    filteredBreastfeeding.length + filteredBreastPump.length;
+
+
+                // Combiner et trier par timestamp (plus récent en premier)
+                const allEntries = [...filteredEntries, ...filteredSleep, ...filteredBreastfeeding, ...filteredBreastPump];
+
+                return allEntries.sort((a, b) => {
+                    const dateA = parseTimestamp(a.timestamp);
+                    const dateB = parseTimestamp(b.timestamp);
+                    return dateB - dateA;
+                });
+            };
+            // Vérification connexion au chargement
             useEffect(() => {
                 const savedCode = localStorage.getItem('familyCode');
                 if (savedCode) {
                     setAuthData(prev => ({ ...prev, code: savedCode }));
                     handleLogin(savedCode);
+                } else {
+                    setIsLoading(false); // Pas de code sauvegardé, arrêter le loader
                 }
-
             }, []);
 
 
@@ -1003,10 +1125,130 @@
                 const familyCode = user.code;
                 const unsubscribers = [];
 
-                // Écoute des entrées filtrées par famille
+                // Charger toutes les données en parallèle pour plus de rapidité
+                Promise.all([
+                    // Entries
+                    db.collection('entries')
+                        .where('familyCode', '==', familyCode)
+                        .orderBy('timestamp', 'desc')
+                        .limit(50) // Limiter à 50 entrées pour charger plus vite
+                        .get(),
+
+                    // Stocks
+                    db.collection('stocks')
+                        .where('familyCode', '==', familyCode)
+                        .get(),
+
+                    // Diversification
+                    db.collection('diversification')
+                        .where('familyCode', '==', familyCode)
+                        .orderBy('timestamp', 'desc')
+                        .limit(30)
+                        .get(),
+
+                    // Wardrobe
+                    db.collection('wardrobe')
+                        .where('familyCode', '==', familyCode)
+                        .orderBy('timestamp', 'desc')
+                        .limit(30)
+                        .get(),
+
+                    // Sleep sessions
+                    db.collection('sleep_sessions')
+                        .where('familyCode', '==', familyCode)
+                        .limit(30)
+                        .get(),
+
+                    // Breastfeeding
+                    db.collection('breastfeeding')
+                        .where('familyCode', '==', familyCode)
+                        .orderBy('timestamp', 'desc')
+                        .limit(30)
+                        .get(),
+
+                    // Breast pump
+                    db.collection('breast_pump')
+                        .where('familyCode', '==', familyCode)
+                        .orderBy('timestamp', 'desc')
+                        .limit(30)
+                        .get()
+                ]).then(([
+                    entriesSnap,
+                    stocksSnap,
+                    diversificationSnap,
+                    wardrobeSnap,
+                    sleepSnap,
+                    breastfeedingSnap,
+                    breastPumpSnap
+                ]) => {
+                    // Entries
+                    const entriesData = [];
+                    entriesSnap.forEach(doc => entriesData.push({ id: doc.id, ...doc.data() }));
+                    setEntries(entriesData);
+                    localStorage.setItem('babyTrackerEntries', JSON.stringify(entriesData));
+
+                    // Stocks
+                    const stocksData = {};
+                    stocksSnap.forEach(doc => {
+                        const data = doc.data();
+                        stocksData[data.type] = data;
+                    });
+                    setStocks(stocksData);
+
+                    // Diversification
+                    const diversificationData = [];
+                    diversificationSnap.forEach(doc => diversificationData.push({ id: doc.id, ...doc.data() }));
+                    setDiversificationEntries(diversificationData);
+
+                    // Wardrobe
+                    const wardrobeData = [];
+                    wardrobeSnap.forEach(doc => wardrobeData.push({ id: doc.id, ...doc.data() }));
+                    setWardrobe(wardrobeData);
+
+                    // Sleep
+                    const sleepData = [];
+                    let ongoingSleep = null;
+                    sleepSnap.forEach(doc => {
+                        const sessionData = { id: doc.id, ...doc.data() };
+                        sleepData.push(sessionData);
+                        if (sessionData.status === 'ongoing') {
+                            ongoingSleep = sessionData;
+                        }
+                    });
+                    sleepData.sort((a, b) => new Date(b.timestamp || b.startTime) - new Date(a.timestamp || a.startTime));
+                    setSleepSessions(sleepData);
+                    setCurrentSleep(ongoingSleep);
+
+                    // Breastfeeding
+                    const breastfeedingData = [];
+                    let ongoingBreastfeeding = null;
+                    breastfeedingSnap.forEach(doc => {
+                        const sessionData = { id: doc.id, ...doc.data() };
+                        breastfeedingData.push(sessionData);
+                        if (sessionData.status === 'ongoing') {
+                            ongoingBreastfeeding = sessionData;
+                        }
+                    });
+                    setBreastfeedingEntries(breastfeedingData);
+                    setBreastfeedingSession(ongoingBreastfeeding);
+
+                    // Breast pump
+                    const breastPumpData = [];
+                    breastPumpSnap.forEach(doc => breastPumpData.push({ id: doc.id, ...doc.data() }));
+                    setBreastPumpEntries(breastPumpData);
+
+                    setIsLoading(false); // Données chargées, cacher le loader
+                }).catch(error => {
+                    console.error('Erreur chargement données:', error);
+                    setIsLoading(false);
+                });
+
+                // Ensuite écouter les changements en temps réel (après le chargement initial)
+                // Entries
                 const entriesUnsubscribe = db.collection('entries')
                     .where('familyCode', '==', familyCode)
                     .orderBy('timestamp', 'desc')
+                    .limit(50)
                     .onSnapshot((snapshot) => {
                         const entriesData = [];
                         snapshot.forEach((doc) => {
@@ -1017,29 +1259,21 @@
                     });
                 unsubscribers.push(entriesUnsubscribe);
 
-                // Charger les accomplissements depuis Firebase
-                // Écouter les accomplissements en temps réel depuis Firebase
+                // Accomplissements
                 const accomplishmentsUnsubscribe = db.collection('families').doc(user.code)
                     .onSnapshot((doc) => {
                         if (doc.exists) {
                             const userData = doc.data();
                             if (userData.accomplishments) {
                                 setAccomplishments(userData.accomplishments);
-                                console.log('Accomplissements chargés:', userData.accomplishments);
                             } else {
-                                // Initialiser avec un objet vide si pas encore d'accomplissements
                                 setAccomplishments({});
-                                console.log('Aucun accomplissement trouvé, initialisation');
                             }
                         }
-                    }, (error) => {
-                        console.error('Erreur écoute accomplissements:', error);
                     });
-
                 unsubscribers.push(accomplishmentsUnsubscribe);
 
-
-                // Écoute des stocks filtrés par famille
+                // Stocks
                 const stocksUnsubscribe = db.collection('stocks')
                     .where('familyCode', '==', familyCode)
                     .onSnapshot((snapshot) => {
@@ -1052,12 +1286,11 @@
                     });
                 unsubscribers.push(stocksUnsubscribe);
 
-
-
-                // Écoute de la diversification filtrée par famille
+                // Diversification
                 const diversificationUnsubscribe = db.collection('diversification')
                     .where('familyCode', '==', familyCode)
                     .orderBy('timestamp', 'desc')
+                    .limit(30)
                     .onSnapshot((snapshot) => {
                         const diversificationData = [];
                         snapshot.forEach((doc) => {
@@ -1067,10 +1300,11 @@
                     });
                 unsubscribers.push(diversificationUnsubscribe);
 
-                // Écoute de la garde-robe filtrée par famille
+                // Wardrobe
                 const wardrobeUnsubscribe = db.collection('wardrobe')
                     .where('familyCode', '==', familyCode)
                     .orderBy('timestamp', 'desc')
+                    .limit(30)
                     .onSnapshot((snapshot) => {
                         const wardrobeData = [];
                         snapshot.forEach((doc) => {
@@ -1078,10 +1312,12 @@
                         });
                         setWardrobe(wardrobeData);
                     });
+                unsubscribers.push(wardrobeUnsubscribe);
 
-                // Écoute du sommeil filtré par famille
+                // Sleep
                 const sleepUnsubscribe = db.collection('sleep_sessions')
                     .where('familyCode', '==', familyCode)
+                    .limit(30)
                     .onSnapshot((snapshot) => {
                         const sleepData = [];
                         let ongoingSession = null;
@@ -1095,19 +1331,17 @@
                             }
                         });
 
-                        // Trier côté client
                         sleepData.sort((a, b) => new Date(b.timestamp || b.startTime) - new Date(a.timestamp || a.startTime));
-
-                        console.log('Sessions chargées depuis Firebase:', sleepData);
                         setSleepSessions(sleepData);
                         setCurrentSleep(ongoingSession);
                     });
                 unsubscribers.push(sleepUnsubscribe);
-                // Écoute de l'allaitement filtré par famille
-                // Écoute de l'allaitement filtré par famille
+
+                // Breastfeeding
                 const breastfeedingUnsubscribe = db.collection('breastfeeding')
                     .where('familyCode', '==', familyCode)
                     .orderBy('timestamp', 'desc')
+                    .limit(30)
                     .onSnapshot((snapshot) => {
                         const breastfeedingData = [];
                         let ongoingSession = null;
@@ -1125,10 +1359,12 @@
                         setBreastfeedingSession(ongoingSession);
                     });
                 unsubscribers.push(breastfeedingUnsubscribe);
-                // Écoute du tire-lait filtré par famille
+
+                // Breast pump
                 const breastPumpUnsubscribe = db.collection('breast_pump')
                     .where('familyCode', '==', familyCode)
                     .orderBy('timestamp', 'desc')
+                    .limit(30)
                     .onSnapshot((snapshot) => {
                         const breastPumpData = [];
                         snapshot.forEach((doc) => {
@@ -1137,7 +1373,7 @@
                         setBreastPumpEntries(breastPumpData);
                     });
                 unsubscribers.push(breastPumpUnsubscribe);
-                unsubscribers.push(wardrobeUnsubscribe);
+
                 return () => {
                     unsubscribers.forEach(unsubscribe => unsubscribe());
                 };
@@ -1214,10 +1450,8 @@
 
                             // Vérifier que les données sont bien du jour actuel
                             if (data.date === today) {
-                                console.log('Chargement soins du jour:', data.care);
                             } else {
                                 // Données d'un autre jour, réinitialiser
-                                console.log('Réinitialisation des soins pour nouveau jour');
                                 const freshCare = {
                                     cordon: {
                                         active: data.care?.cordon?.active ?? true,
@@ -1232,7 +1466,6 @@
                             }
                         } else {
                             // Aucune donnée pour aujourd'hui, créer l'initial
-                            console.log('Création initiale des soins');
                             const initialCare = {
                                 cordon: {
                                     active: true,
@@ -1292,27 +1525,53 @@
                     setNotificationPermission(Notification.permission);
                 }
             }, []);
-
             useEffect(() => {
                 // Détection iOS pour les notifications
                 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-                if (isIOS) {
-                    // Message spécifique pour iOS
-                    console.log('iOS détecté - PWA mode');
+                if (isIOS && user && !isLoading) {
 
                     // Vérifier si l'app est en mode PWA
                     const isStandalone = window.navigator.standalone === true;
+                    const currentVersion = '1.2.0';
+                    const lastSeenVersion = localStorage.getItem('babytrack_last_version');
+
                     if (!isStandalone) {
-                        // Suggérer d'ajouter à l'écran d'accueil après 5 secondes
+                        // Calculer le délai : si pop-up MAJ s'affiche, attendre 10 secondes, sinon 2 secondes
+                        const delay = lastSeenVersion !== currentVersion ? 10000 : 2000;
+
                         setTimeout(() => {
-                            if (window.confirm('Pour une meilleure expérience, ajoutez BabyTrack à votre écran d\'accueil !')) {
-                                alert('Appuyez sur le bouton Partager puis "Sur l\'écran d\'accueil"');
-                            }
-                        }, 5000);
+                            setPwaPopupType('suggest');
+                            setShowPWAPopup(true);
+                        }, delay);
                     }
                 }
-            }, []);
+            }, [user, isLoading]);
+            // Vérifier si la pop-up de mise à jour doit s'afficher
+            useEffect(() => {
+
+
+
+                const currentVersion = '1.2.0';
+                const lastSeenVersion = localStorage.getItem('babytrack_last_version');
+
+
+
+                if (lastSeenVersion !== currentVersion) {
+                    const timer = setTimeout(() => {
+                        setShowUpdatePopup(true);
+                    }, 1500);
+
+                    return () => clearTimeout(timer);
+                }
+            }, [user, isLoading]);
+
+            // Fonction pour fermer la pop-up et marquer comme vue
+            const closeUpdatePopup = () => {
+                const currentVersion = '1.2.0';
+                localStorage.setItem('babytrack_last_version', currentVersion);
+                setShowUpdatePopup(false);
+            };
             // Authentification
             const handleCreateAccount = async () => {
                 const { babyName, birthDate, birthTime, birthWeight, birthHeight, parents, gender } = authData;
@@ -1354,21 +1613,18 @@
                     return;
                 }
 
-                try {
-                    console.log('Tentative de connexion avec le code:', code.toUpperCase());
+                setIsLoading(true); // Afficher le loader
 
+                try {
                     const doc = await db.collection('families').doc(code.toUpperCase()).get();
 
                     if (doc.exists) {
                         const userData = doc.data();
-                        console.log('Données utilisateur trouvées:', userData);
-
                         setUser(userData);
 
-                        // Charger le poids et la taille sauvegardés
+                        // Charger le poids et la taille
                         if (userData.currentWeight) {
                             setCurrentWeight(userData.currentWeight);
-                            console.log('Poids chargé:', userData.currentWeight);
                         }
                         if (userData.lastWeightUpdate) {
                             setLastWeightUpdate(userData.lastWeightUpdate);
@@ -1382,23 +1638,14 @@
 
                         localStorage.setItem('familyCode', code.toUpperCase());
                         setShowAuth(false);
-                        console.log('Connexion réussie');
                     } else {
-                        console.log('Code famille introuvable dans la base');
                         alert('Code famille introuvable. Vérifiez le code ou créez un nouveau compte.');
                     }
                 } catch (error) {
-                    console.error('Erreur connexion détaillée:', error);
-
-                    if (error.code === 'permission-denied') {
-                        alert('Erreur de permissions Firebase. Vérifiez la configuration.');
-                    } else if (error.code === 'unavailable') {
-                        alert('Service Firebase temporairement indisponible. Réessayez dans quelques instants.');
-                    } else if (error.code === 'failed-precondition') {
-                        alert('Configuration Firebase incomplète.');
-                    } else {
-                        alert(`Erreur de connexion: ${error.message || 'Erreur inconnue'}`);
-                    }
+                    console.error('Erreur connexion:', error);
+                    alert(`Erreur de connexion: ${error.message || 'Erreur inconnue'}`);
+                } finally {
+                    setIsLoading(false); // Cacher le loader
                 }
             };
             // Fonctions d'exportation
@@ -1711,51 +1958,51 @@ ${allExportEntries.length > 0
             };
 
             const saveEntry = async () => {
-    const { time, date, amount, hasPee, hasPoop, poopQuantity, poopConsistency, poopColor } = formData;
+                const { time, date, amount, hasPee, hasPoop, poopQuantity, poopConsistency, poopColor } = formData;
 
-    if (!time || !date) {
-        alert('Heure et date obligatoires');
-        return;
-    }
+                if (!time || !date) {
+                    alert('Heure et date obligatoires');
+                    return;
+                }
 
-    if (formType === 'feeding' && !amount) {
-        alert('Quantité obligatoire pour le biberon');
-        return;
-    }
+                if (formType === 'feeding' && !amount) {
+                    alert('Quantité obligatoire pour le biberon');
+                    return;
+                }
 
-    if (formType === 'diaper' && !hasPee && !hasPoop) {
-        alert('Indiquez au moins pipi ou caca');
-        return;
-    }
+                if (formType === 'diaper' && !hasPee && !hasPoop) {
+                    alert('Indiquez au moins pipi ou caca');
+                    return;
+                }
 
-    const entry = {
-        type: formType,
-        // CORRECTION ICI : Créer le timestamp sans conversion UTC automatique
-        timestamp: `${date}T${time}:00`,
-        familyCode: user.code,
-        hasPee,
-        hasPoop,
-        poopQuantity,
-        poopConsistency,
-        poopColor
-    };
+                const entry = {
+                    type: formType,
+                    // CORRECTION ICI : Créer le timestamp sans conversion UTC automatique
+                    timestamp: `${date}T${time}:00`,
+                    familyCode: user.code,
+                    hasPee,
+                    hasPoop,
+                    poopQuantity,
+                    poopConsistency,
+                    poopColor
+                };
 
-    if (formType === 'feeding') {
-        entry.amount = parseInt(amount);
-    }
+                if (formType === 'feeding') {
+                    entry.amount = parseInt(amount);
+                }
 
-    try {
-        if (editingId) {
-            await db.collection('entries').doc(editingId).update(entry);
-        } else {
-            await db.collection('entries').add(entry);
-        }
-        closeForm();
-    } catch (error) {
-        console.error('Erreur sauvegarde:', error);
-        alert('Erreur lors de la sauvegarde');
-    }
-};
+                try {
+                    if (editingId) {
+                        await db.collection('entries').doc(editingId).update(entry);
+                    } else {
+                        await db.collection('entries').add(entry);
+                    }
+                    closeForm();
+                } catch (error) {
+                    console.error('Erreur sauvegarde:', error);
+                    alert('Erreur lors de la sauvegarde');
+                }
+            };
             const deleteEntry = async (entryId) => {
                 if (!confirm('Supprimer cette entrée ?')) return;
 
@@ -1932,9 +2179,7 @@ ${allExportEntries.length > 0
                         familyCode: user.code,
                         timestamp: new Date().toISOString()
                     });
-                    console.log('Soins sauvegardés avec succès');
                 } catch (error) {
-                    console.error('Erreur sauvegarde soins:', error);
                     throw error;
                 }
             };
@@ -2096,8 +2341,6 @@ ${allExportEntries.length > 0
 
                 try {
                     const docRef = await db.collection('sleep_sessions').add(sleepSession);
-                    console.log('Session créée avec ID:', docRef.id);
-                    console.log('Données envoyées:', sleepSession); // Debug
                     setCurrentSleep({ id: docRef.id, ...sleepSession });
                 } catch (error) {
                     console.error('Erreur démarrage sommeil:', error);
@@ -2107,78 +2350,83 @@ ${allExportEntries.length > 0
             const stopSleep = async () => {
                 if (!currentSleep) return;
 
-                const now = new Date().toISOString();
+                const now = new Date();
                 const startTime = new Date(currentSleep.startTime);
-                const endTime = new Date(now);
-                const durationMs = endTime - startTime;
+
+                // Calculer la durée en millisecondes
+                const durationMs = now - startTime;
                 const durationMinutes = Math.max(1, Math.floor(durationMs / (1000 * 60)));
 
                 const updatedSession = {
-                    endTime: now,
+                    endTime: now.toISOString(),
                     duration: durationMinutes,
                     status: 'completed',
-                    timestamp: now // Mettre à jour le timestamp
+                    timestamp: now.toISOString()
                 };
 
                 try {
                     await db.collection('sleep_sessions').doc(currentSleep.id).update(updatedSession);
-                    console.log('Session terminée:', durationMinutes, 'minutes');
                     setCurrentSleep(null);
                 } catch (error) {
-                    console.error('Erreur arrêt sommeil:', error);
                     alert('Erreur lors de l\'arrêt');
                 }
             };
+
             const saveSleepEdit = async () => {
-    const { startTime, endTime, date } = sleepData;
+                const { startTime, endTime, date } = sleepData;
 
-    if (!startTime || !endTime || !date) {
-        alert('Veuillez remplir tous les champs');
-        return;
-    }
+                if (!startTime || !endTime || !date) {
+                    alert('Veuillez remplir tous les champs');
+                    return;
+                }
 
-    const start = new Date(`${date}T${startTime}:00`);
-    let end = new Date(`${date}T${endTime}:00`);
+                // Créer les dates avec l'heure locale
+                const start = new Date(`${date}T${startTime}:00`);
+                let end = new Date(`${date}T${endTime}:00`);
 
-    // Si l'heure de fin est antérieure à l'heure de début, 
-    // on suppose que c'est le lendemain
-    if (end <= start) {
-        end.setDate(end.getDate() + 1);
-    }
+                // Si l'heure de fin est avant l'heure de début, c'est le lendemain
+                if (end <= start) {
+                    end.setDate(end.getDate() + 1);
+                }
 
-    const durationMs = end - start;
-    const durationMinutes = Math.floor(durationMs / (1000 * 60));
+                const durationMs = end - start;
+                const durationMinutes = Math.floor(durationMs / (1000 * 60));
 
-    // Vérification que la durée reste raisonnable (max 15h)
-    if (durationMinutes > 900) {
-        alert('La durée de sommeil semble trop longue (plus de 15h). Vérifiez les heures saisies.');
-        return;
-    }
+                // Vérification que la durée reste raisonnable (max 15h)
+                if (durationMinutes > 900) {
+                    alert('La durée de sommeil semble trop longue (plus de 15h). Vérifiez les heures saisies.');
+                    return;
+                }
 
-    const sleepSession = {
-        familyCode: user.code,
-        startTime: start.toISOString(),
-        endTime: end.toISOString(),
-        duration: durationMinutes,
-        timestamp: start.toISOString(),
-        status: 'completed'
-    };
+                if (durationMinutes <= 0) {
+                    alert('La durée de sommeil doit être positive.');
+                    return;
+                }
 
-    try {
-        if (editingSleepId) {
-            await db.collection('sleep_sessions').doc(editingSleepId).update(sleepSession);
-        } else {
-            await db.collection('sleep_sessions').add(sleepSession);
-        }
+                const sleepSession = {
+                    familyCode: user.code,
+                    startTime: start.toISOString(),
+                    endTime: end.toISOString(),
+                    duration: durationMinutes,
+                    timestamp: start.toISOString(),
+                    status: 'completed'
+                };
 
-        setSleepData({ startTime: '', endTime: '', date: getCurrentDate() });
-        setEditingSleepId(null);
-        setShowSleepModal(false); // Fermer le modal après sauvegarde
-    } catch (error) {
-        console.error('Erreur sauvegarde sommeil:', error);
-        alert('Erreur lors de la sauvegarde');
-    }
-};
+                try {
+                    if (editingSleepId) {
+                        await db.collection('sleep_sessions').doc(editingSleepId).update(sleepSession);
+                    } else {
+                        await db.collection('sleep_sessions').add(sleepSession);
+                    }
+
+                    setSleepData({ startTime: '', endTime: '', date: getCurrentDate() });
+                    setEditingSleepId(null);
+                    setShowSleepModal(false);
+                } catch (error) {
+                    console.error('Erreur sauvegarde sommeil:', error);
+                    alert('Erreur lors de la sauvegarde');
+                }
+            };
             const formatSleepDuration = (minutes) => {
                 const hours = Math.floor(minutes / 60);
                 const mins = minutes % 60;
@@ -2286,6 +2534,13 @@ ${allExportEntries.length > 0
                         }, 100);
                     }
                 }, [currentView, analyticsFilter, analyticsPeriod, entries, sleepSessions, breastfeedingEntries, breastPumpEntries]);
+
+                // Fonction pour fermer la pop-up et marquer comme vue
+                const closeUpdatePopup = () => {
+                    const currentVersion = '1.2.0';
+                    localStorage.setItem('babytrack_last_version', currentVersion);
+                    setShowUpdatePopup(false);
+                };
                 // Fonction pour mettre à jour le graphique principal
                 const updateAnalyticsChart = () => {
                     if (!analyticsChartRef.current || analyticsFilter.length === 0) return;
@@ -2506,6 +2761,7 @@ ${allExportEntries.length > 0
                 setEditingWardrobeId(itemId);
                 setShowWardrobeModal(true);
             };
+
             const editSleepSession = (sessionId) => {
                 const session = sleepSessions.find(s => s.id === sessionId);
                 if (!session) return;
@@ -2519,9 +2775,8 @@ ${allExportEntries.length > 0
                     date: startDate.toISOString().slice(0, 10)
                 });
                 setEditingSleepId(sessionId);
-                setCurrentView('sleep-manual');
+                setShowSleepModal(true);
             };
-
             const deleteSleepSession = async (sessionId) => {
                 if (!confirm('Supprimer cette session de sommeil ?')) return;
 
@@ -2883,7 +3138,26 @@ ${allExportEntries.length > 0
 
             // Calculer les recommandations alimentaires
             const age = calculateAge();
+
             const themeColors = getThemeColors();
+            // Écran de chargement
+            if (isLoading) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="inline-block mb-6">
+                                <img src="logo.PNG" alt="BabyTrack" className="w-32 h-32 mx-auto rounded-3xl shadow-2xl" />
+                            </div>
+                            <div className="flex items-center justify-center gap-2 mb-4">
+                                <div className="w-3 h-3 bg-blue-500 rounded-full " style={{ animationDelay: '0s' }}></div>
+                                <div className="w-3 h-3 bg-indigo-500 rounded-full " style={{ animationDelay: '0.2s' }}></div>
+                                <div className="w-3 h-3 bg-purple-500 rounded-full " style={{ animationDelay: '0.4s' }}></div>
+                            </div>
+                            <p className="text-lg font-semibold text-gray-700">Chargement...</p>
+                        </div>
+                    </div>
+                );
+            }
 
             // Rendu conditionnel - Écran d'authentification
             if (showAuth) {
@@ -3009,7 +3283,168 @@ ${allExportEntries.length > 0
                     <span>{label}</span>
                 </button>
             );
+            // Fonction pour obtenir l'icône et l'animation selon la compétence
+            const getAccomplishmentVisual = (accomplishmentText) => {
+                const text = accomplishmentText.toLowerCase();
 
+                // Mouvements de la tête
+                if (text.includes('tête') && (text.includes('haute') || text.includes('stable') || text.includes('droite'))) {
+                    return { icon: '👶', animation: 'shake-head', color: 'from-blue-100 to-blue-200' };
+                }
+
+                // Se retourner
+                if (text.includes('retourne') || (text.includes('ventre') && text.includes('dos'))) {
+                    return { icon: '🔄', animation: 'rotate-slow', color: 'from-purple-100 to-purple-200' };
+                }
+
+                // Mains à la bouche
+                if (text.includes('mains') && text.includes('bouche')) {
+                    return { icon: '✋', animation: 'bounce-gentle', color: 'from-pink-100 to-pink-200' };
+                }
+
+                // Bras et jambes
+                if (text.includes('bras') || text.includes('jambes') || text.includes('symétrique')) {
+                    return { icon: '💪', animation: 'swing', color: 'from-orange-100 to-orange-200' };
+                }
+
+                // Suivre des objets
+                if (text.includes('suit') && text.includes('objets')) {
+                    return { icon: '👀', animation: 'slide-lr', color: 'from-indigo-100 to-indigo-200' };
+                }
+
+                // Sourire
+                if (text.includes('sourit') || text.includes('sourire')) {
+                    return { icon: '😊', animation: 'pulse-soft', color: 'from-yellow-100 to-yellow-200' };
+                }
+
+                // Transfert d'objets
+                if (text.includes('transfère') || text.includes('main à')) {
+                    return { icon: '🤲', animation: 'slide-lr', color: 'from-teal-100 to-teal-200' };
+                }
+
+                // S'asseoir
+                if (text.includes('assoit') || text.includes('assis')) {
+                    return { icon: '🪑', animation: 'bounce-gentle', color: 'from-green-100 to-green-200' };
+                }
+
+                // Ramper
+                if (text.includes('rampe') || text.includes('déplace')) {
+                    return { icon: '🐛', animation: 'slide-lr', color: 'from-lime-100 to-lime-200' };
+                }
+
+                // Debout
+                if (text.includes('debout') || text.includes('tient')) {
+                    return { icon: '🧍', animation: 'bounce-gentle', color: 'from-cyan-100 to-cyan-200' };
+                }
+
+                // Sons et babillage
+                if (text.includes('babille') || text.includes('sons') || text.includes('consonnes') || text.includes('bruits')) {
+                    return { icon: '🗣️', animation: 'pulse-soft', color: 'from-rose-100 to-rose-200' };
+                }
+
+                // Écouter
+                if (text.includes('écoute') || text.includes('réagit') && text.includes('sons')) {
+                    return { icon: '👂', animation: 'shake-head', color: 'from-purple-100 to-purple-200' };
+                }
+
+                // Reconnaître
+                if (text.includes('reconnaît') || text.includes('visages')) {
+                    return { icon: '👨‍👩‍👧', animation: 'pulse-soft', color: 'from-pink-100 to-pink-200' };
+                }
+
+                // Rire
+                if (text.includes('rit') || text.includes('rire')) {
+                    return { icon: '😄', animation: 'bounce-gentle', color: 'from-yellow-100 to-yellow-200' };
+                }
+
+                // Explorer
+                if (text.includes('explore') && text.includes('bouche')) {
+                    return { icon: '🍼', animation: 'float-gentle', color: 'from-orange-100 to-orange-200' };
+                }
+
+                // Chercher objets cachés
+                if (text.includes('cherche') || text.includes('caché')) {
+                    return { icon: '🔍', animation: 'peek-a-boo', color: 'from-blue-100 to-blue-200' };
+                }
+
+                // Permanence des objets
+                if (text.includes('permanence')) {
+                    return { icon: '🎁', animation: 'peek-a-boo', color: 'from-purple-100 to-purple-200' };
+                }
+
+                // Imiter
+                if (text.includes('imite')) {
+                    return { icon: '🪞', animation: 'pulse-soft', color: 'from-indigo-100 to-indigo-200' };
+                }
+
+                // Jouer (coucou)
+                if (text.includes('joue') || text.includes('coucou')) {
+                    return { icon: '👋', animation: 'swing', color: 'from-green-100 to-green-200' };
+                }
+
+                // Gestes pour communiquer
+                if (text.includes('gestes') && text.includes('communiquer')) {
+                    return { icon: '✌️', animation: 'swing', color: 'from-teal-100 to-teal-200' };
+                }
+
+                // Comprendre des mots
+                if (text.includes('comprend') && text.includes('mots')) {
+                    return { icon: '💬', animation: 'pulse-soft', color: 'from-blue-100 to-blue-200' };
+                }
+
+                // Répondre au nom
+                if (text.includes('répond') && text.includes('nom')) {
+                    return { icon: '📢', animation: 'shake-head', color: 'from-pink-100 to-pink-200' };
+                }
+
+                // Anxiété étrangers
+                if (text.includes('anxiété') || text.includes('étrangers')) {
+                    return { icon: '😰', animation: 'shake-head', color: 'from-gray-100 to-gray-200' };
+                }
+
+                // Préférence personnes familières
+                if (text.includes('préfère') && text.includes('familières')) {
+                    return { icon: '❤️', animation: 'pulse-soft', color: 'from-red-100 to-red-200' };
+                }
+
+                // Regarder le reflet
+                if (text.includes('reflet') || text.includes('miroir')) {
+                    return { icon: '🪞', animation: 'pulse-soft', color: 'from-cyan-100 to-cyan-200' };
+                }
+
+                // Montrer intérêt/curiosité
+                if (text.includes('intérêt') || text.includes('curiosité')) {
+                    return { icon: '🤔', animation: 'shake-head', color: 'from-yellow-100 to-yellow-200' };
+                }
+
+                // Joie et contrariété (émotions)
+                if (text.includes('joie') || text.includes('contrariété') || text.includes('émotions')) {
+                    return { icon: '😊😢', animation: 'pulse-soft', color: 'from-orange-100 to-orange-200' };
+                }
+
+                // Images
+                if (text.includes('images')) {
+                    return { icon: '📷', animation: 'float-gentle', color: 'from-blue-100 to-blue-200' };
+                }
+
+                // Cause et effet
+                if (text.includes('cause') && text.includes('effet')) {
+                    return { icon: '⚡', animation: 'pulse-soft', color: 'from-yellow-100 to-yellow-200' };
+                }
+
+                // Pleurs différents
+                if (text.includes('pleure') || text.includes('pleurs')) {
+                    return { icon: '😢', animation: 'bounce-gentle', color: 'from-blue-100 to-blue-200' };
+                }
+
+                // Se calmer
+                if (text.includes('calme')) {
+                    return { icon: '😌', animation: 'float-gentle', color: 'from-green-100 to-green-200' };
+                }
+
+                // Défaut pour les autres
+                return { icon: '✨', animation: 'pulse-soft', color: 'from-purple-100 to-purple-200' };
+            };
 
             return (
 
@@ -4463,7 +4898,7 @@ ${allExportEntries.length > 0
                                 )}
                             </div>
                         )}
-                        
+
                         {showBreastfeedingModal && (
                             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
                                 <div className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto relative">
@@ -4895,167 +5330,167 @@ ${allExportEntries.length > 0
                             </div>
                         )}
                         {/* Modal Sommeil */}
-                       {showSleepModal && (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
-        <div className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto relative">
-            {/* Header */}
-            <div className="sticky top-0 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white p-6 rounded-t-3xl z-10">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                            <i className="fas fa-moon text-xl"></i>
-                        </div>
-                        <div>
-                            <h3 className="text-xl font-bold">Suivi du sommeil</h3>
-                            <p className="text-sm opacity-80">Gestion des sessions</p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={() => setShowSleepModal(false)}
-                        className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center"
-                    >
-                        <i className="fas fa-times text-lg"></i>
-                    </button>
-                </div>
-            </div>
-
-            {/* Contenu */}
-            <div className="p-6 space-y-6">
-                {currentSleep ? (
-                    // Session en cours
-                    <div className="text-center">
-                        <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <i className="fas fa-moon text-indigo-600 text-2xl pulse-gentle"></i>
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-2">Sommeil en cours</h3>
-                        <p className="text-sm text-gray-600 mb-4">
-                            Démarré à {formatTime(currentSleep.startTime)}
-                        </p>
-                        <button
-                            onClick={() => {
-                                stopSleep();
-                                setShowSleepModal(false);
-                            }}
-                            className="w-full bg-gradient-to-r from-red-500 to-red-600 text-white py-4 rounded-2xl font-bold active:scale-95 transition-transform"
-                        >
-                            Arrêter le sommeil
-                        </button>
-                    </div>
-                ) : (
-                    // Démarrer nouvelle session OU saisie manuelle
-                    <div className="space-y-6">
-                        {/* Option 1: Démarrer maintenant */}
-                        <div className="text-center pb-6 border-b border-gray-200">
-                            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <i className="fas fa-play text-green-600 text-2xl"></i>
-                            </div>
-                            <h3 className="text-lg font-bold text-gray-900 mb-2">Démarrer maintenant</h3>
-                            <p className="text-sm text-gray-600 mb-6">
-                                Lancez le suivi quand {user?.babyName} s'endort
-                            </p>
-
-                            <button
-                                onClick={() => {
-                                    startSleep();
-                                    setShowSleepModal(false);
-                                }}
-                                className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 rounded-2xl font-bold active:scale-95 transition-transform"
-                            >
-                                Commencer le sommeil
-                            </button>
-                        </div>
-
-                        {/* Option 2: Saisie manuelle */}
-                        <div>
-                            <h4 className="font-semibold text-gray-800 mb-4 text-center">Ou saisie manuelle</h4>
-
-                            <div className="space-y-4">
-                                {/* Date */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
-                                    <input
-                                        type="date"
-                                        className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-indigo-500 focus:outline-none"
-                                        value={sleepData.date}
-                                        onChange={(e) => setSleepData(prev => ({ ...prev, date: e.target.value }))}
-                                    />
-                                </div>
-
-                                {/* Heures */}
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Début</label>
-                                        <input
-                                            type="time"
-                                            className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-indigo-500 focus:outline-none"
-                                            value={sleepData.startTime}
-                                            onChange={(e) => setSleepData(prev => ({ ...prev, startTime: e.target.value }))}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Fin</label>
-                                        <input
-                                            type="time"
-                                            className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-indigo-500 focus:outline-none"
-                                            value={sleepData.endTime}
-                                            onChange={(e) => setSleepData(prev => ({ ...prev, endTime: e.target.value }))}
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Message info pour les sessions sur plusieurs jours */}
-                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-                                    <p className="text-xs text-blue-700">
-                                        <i className="fas fa-info-circle mr-1"></i>
-                                        Si l'heure de fin est avant l'heure de début, le système comprendra automatiquement qu'il s'agit du lendemain.
-                                    </p>
-                                </div>
-
-                                <button
-                                    onClick={() => {
-                                        saveSleepEdit();
-                                    }}
-                                    className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 text-white py-4 rounded-2xl font-bold active:scale-95 transition-transform"
-                                >
-                                    Enregistrer la session
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Dernières sessions */}
-                {sleepSessions.filter(s => s.status === 'completed').length > 0 && (
-                    <div className="border-t pt-6">
-                        <h4 className="font-semibold text-gray-800 mb-3">Dernières sessions</h4>
-                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                            {sleepSessions.filter(s => s.status === 'completed').slice(0, 3).map(session => (
-                                <div key={session.id} className="bg-indigo-50 rounded-xl p-3 border border-indigo-200">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <div className="font-medium text-indigo-800">
-                                                {formatSleepDuration(session.duration)}
+                        {showSleepModal && (
+                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
+                                <div className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto relative">
+                                    {/* Header */}
+                                    <div className="sticky top-0 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white p-6 rounded-t-3xl z-10">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
+                                                    <i className="fas fa-moon text-xl"></i>
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-xl font-bold">Suivi du sommeil</h3>
+                                                    <p className="text-sm opacity-80">Gestion des sessions</p>
+                                                </div>
                                             </div>
-                                            <div className="text-xs text-indigo-600">
-                                                {formatDateTime(session.startTime)}
-                                            </div>
+                                            <button
+                                                onClick={() => setShowSleepModal(false)}
+                                                className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center"
+                                            >
+                                                <i className="fas fa-times text-lg"></i>
+                                            </button>
                                         </div>
-                                        <button
-                                            onClick={() => deleteSleepSession(session.id)}
-                                            className="text-red-500 hover:text-red-700 p-1"
-                                        >
-                                            <i className="fas fa-trash text-xs"></i>
-                                        </button>
+                                    </div>
+
+                                    {/* Contenu */}
+                                    <div className="p-6 space-y-6">
+                                        {currentSleep ? (
+                                            // Session en cours
+                                            <div className="text-center">
+                                                <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                    <i className="fas fa-moon text-indigo-600 text-2xl pulse-gentle"></i>
+                                                </div>
+                                                <h3 className="text-lg font-bold text-gray-900 mb-2">Sommeil en cours</h3>
+                                                <p className="text-sm text-gray-600 mb-4">
+                                                    Démarré à {formatTime(currentSleep.startTime)}
+                                                </p>
+                                                <button
+                                                    onClick={() => {
+                                                        stopSleep();
+                                                        setShowSleepModal(false);
+                                                    }}
+                                                    className="w-full bg-gradient-to-r from-red-500 to-red-600 text-white py-4 rounded-2xl font-bold active:scale-95 transition-transform"
+                                                >
+                                                    Arrêter le sommeil
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            // Démarrer nouvelle session OU saisie manuelle
+                                            <div className="space-y-6">
+                                                {/* Option 1: Démarrer maintenant */}
+                                                <div className="text-center pb-6 border-b border-gray-200">
+                                                    <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                        <i className="fas fa-play text-green-600 text-2xl"></i>
+                                                    </div>
+                                                    <h3 className="text-lg font-bold text-gray-900 mb-2">Démarrer maintenant</h3>
+                                                    <p className="text-sm text-gray-600 mb-6">
+                                                        Lancez le suivi quand {user?.babyName} s'endort
+                                                    </p>
+
+                                                    <button
+                                                        onClick={() => {
+                                                            startSleep();
+                                                            setShowSleepModal(false);
+                                                        }}
+                                                        className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white py-4 rounded-2xl font-bold active:scale-95 transition-transform"
+                                                    >
+                                                        Commencer le sommeil
+                                                    </button>
+                                                </div>
+
+                                                {/* Option 2: Saisie manuelle */}
+                                                <div>
+                                                    <h4 className="font-semibold text-gray-800 mb-4 text-center">Ou saisie manuelle</h4>
+
+                                                    <div className="space-y-4">
+                                                        {/* Date */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                                                            <input
+                                                                type="date"
+                                                                className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-indigo-500 focus:outline-none"
+                                                                value={sleepData.date}
+                                                                onChange={(e) => setSleepData(prev => ({ ...prev, date: e.target.value }))}
+                                                            />
+                                                        </div>
+
+                                                        {/* Heures */}
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-gray-700 mb-2">Début</label>
+                                                                <input
+                                                                    type="time"
+                                                                    className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-indigo-500 focus:outline-none"
+                                                                    value={sleepData.startTime}
+                                                                    onChange={(e) => setSleepData(prev => ({ ...prev, startTime: e.target.value }))}
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-gray-700 mb-2">Fin</label>
+                                                                <input
+                                                                    type="time"
+                                                                    className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-indigo-500 focus:outline-none"
+                                                                    value={sleepData.endTime}
+                                                                    onChange={(e) => setSleepData(prev => ({ ...prev, endTime: e.target.value }))}
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Message info pour les sessions sur plusieurs jours */}
+                                                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                                                            <p className="text-xs text-blue-700">
+                                                                <i className="fas fa-info-circle mr-1"></i>
+                                                                Si l'heure de fin est avant l'heure de début, le système comprendra automatiquement qu'il s'agit du lendemain.
+                                                            </p>
+                                                        </div>
+
+                                                        <button
+                                                            onClick={() => {
+                                                                saveSleepEdit();
+                                                            }}
+                                                            className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 text-white py-4 rounded-2xl font-bold active:scale-95 transition-transform"
+                                                        >
+                                                            Enregistrer la session
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Dernières sessions */}
+                                        {sleepSessions.filter(s => s.status === 'completed').length > 0 && (
+                                            <div className="border-t pt-6">
+                                                <h4 className="font-semibold text-gray-800 mb-3">Dernières sessions</h4>
+                                                <div className="space-y-2 max-h-40 overflow-y-auto">
+                                                    {sleepSessions.filter(s => s.status === 'completed').slice(0, 3).map(session => (
+                                                        <div key={session.id} className="bg-indigo-50 rounded-xl p-3 border border-indigo-200">
+                                                            <div className="flex items-center justify-between">
+                                                                <div>
+                                                                    <div className="font-medium text-indigo-800">
+                                                                        {formatSleepDuration(session.duration)}
+                                                                    </div>
+                                                                    <div className="text-xs text-indigo-600">
+                                                                        {formatDateTime(session.startTime)}
+                                                                    </div>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => deleteSleepSession(session.id)}
+                                                                    className="text-red-500 hover:text-red-700 p-1"
+                                                                >
+                                                                    <i className="fas fa-trash text-xs"></i>
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-    </div>
-)}
+                            </div>
+                        )}
                         {/* Modal Diversification */}
                         {showFoodModal && (
                             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
@@ -5656,7 +6091,6 @@ ${allExportEntries.length > 0
                             </div>
                         )}
 
-
                         {/* Formulaire principal biberon/couche */}
                         {showForm && (
                             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
@@ -5884,17 +6318,56 @@ ${allExportEntries.length > 0
                         {/* Vue Accomplissements */}
                         {currentView === 'accomplishments' && (
                             <div className="space-y-4">
-                                {/* Header avec trophée */}
-                                <div className="text-center mb-6">
-                                    <div className="w-20 h-20 mx-auto bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center mb-3 shadow-xl">
-                                        <i className="fas fa-trophy text-white text-2xl"></i>
+                                {/* Header héroïque avec progression globale */}
+                                <div className="relative overflow-hidden">
+                                    <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 via-orange-400 to-pink-500 opacity-20 rounded-3xl"></div>
+                                    <div className="relative bg-white/95 backdrop-blur-sm rounded-3xl p-6 shadow-2xl border-2 border-yellow-300">
+                                        <div className="text-center mb-4">
+                                            <div className="relative inline-block mb-4">
+                                                <div className="w-24 h-24 mx-auto bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-2xl">
+                                                    <i className="fas fa-trophy text-white text-4xl"></i>
+                                                </div>
+                                                <div className="absolute -top-2 -right-2">
+                                                    <div className="w-8 h-8 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full flex items-center justify-center shadow-xl">
+                                                        <span className="text-white text-xs font-bold">
+                                                            {Object.values(accomplishments).flat().filter(status => status === 'complete').length}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <h2 className="text-2xl font-black text-gray-900 mb-2">
+                                                Les exploits de {user?.babyName}
+                                            </h2>
+                                            <p className="text-sm text-gray-600 mb-4">Débloquez de nouvelles compétences !</p>
+
+                                            {/* Barre de progression globale */}
+                                            <div className="w-full bg-gray-200 rounded-full h-4 mb-2 overflow-hidden shadow-inner">
+                                                <div
+                                                    className="h-full bg-gradient-to-r from-yellow-400 via-orange-500 to-pink-500 rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
+                                                    style={{
+                                                        width: `${(() => {
+                                                            const allMilestones = Object.values(accomplishmentData).flatMap(age => Object.values(age).flat()).length;
+                                                            const completed = Object.values(accomplishments).flat().filter(status => status === 'complete').length;
+                                                            return Math.round((completed / allMilestones) * 100);
+                                                        })()}%`
+                                                    }}
+                                                >
+                                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
+                                                </div>
+                                            </div>
+                                            <p className="text-xs font-bold text-gray-700">
+                                                {(() => {
+                                                    const allMilestones = Object.values(accomplishmentData).flatMap(age => Object.values(age).flat()).length;
+                                                    const completed = Object.values(accomplishments).flat().filter(status => status === 'complete').length;
+                                                    return `${completed} / ${allMilestones} compétences maîtrisées`;
+                                                })()}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <h2 className="text-xl font-bold text-gray-800">Accomplissements de {user?.babyName}</h2>
-                                    <p className="text-sm text-gray-600">Suivez les étapes de développement</p>
                                 </div>
 
-                                {/* Cartes par âge avec barre de progression */}
-                                <div className="space-y-4">
+                                {/* Catégories d'âge sous forme de cartes de jeu */}
+                                <div className="space-y-3">
                                     {Object.entries(accomplishmentData).map(([ageKey, categories]) => {
                                         const ageLabels = {
                                             '2months': '2 mois',
@@ -5903,92 +6376,125 @@ ${allExportEntries.length > 0
                                             '9months': '9 mois'
                                         };
 
-                                        // Calculer le pourcentage de completion
+                                        const ageEmojis = {
+                                            '2months': '👶',
+                                            '4months': '🍼',
+                                            '6months': '🎈',
+                                            '9months': '⭐'
+                                        };
+
                                         const totalAccomplishments = Object.values(categories).flat().length;
                                         const completedCount = Object.values(categories).flat().filter(item =>
                                             accomplishments[ageKey]?.[item] === 'complete'
                                         ).length;
                                         const progressPercent = totalAccomplishments > 0 ? Math.round((completedCount / totalAccomplishments) * 100) : 0;
-
                                         const isUnlocked = calculateAge() >= parseInt(ageKey.replace('months', '')) * 30;
+                                        const isCompleted = progressPercent === 100;
 
                                         return (
                                             <div
                                                 key={ageKey}
-                                                className={`bg-white/90 rounded-2xl p-4 shadow-xl border border-white/50 ${!isUnlocked ? 'opacity-50' : 'cursor-pointer hover:scale-105'
-                                                    } transition-all duration-200`}
                                                 onClick={() => {
                                                     if (isUnlocked) {
                                                         setCurrentMilestoneAge(ageKey);
                                                         setShowAccomplishments(true);
                                                     }
                                                 }}
+                                                className={`relative overflow-hidden rounded-3xl transition-all duration-300 ${isUnlocked
+                                                    ? 'cursor-pointer hover:scale-102 active:scale-98'
+                                                    : 'opacity-60'
+                                                    }`}
+                                                style={{
+                                                    background: isCompleted
+                                                        ? 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #ec4899 100%)'
+                                                        : isUnlocked
+                                                            ? 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)'
+                                                            : 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)'
+                                                }}
                                             >
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${progressPercent === 100 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600' :
-                                                            progressPercent > 0 ? 'bg-gradient-to-br from-blue-400 to-blue-600' :
-                                                                'bg-gray-200'
+                                                {/* Effet de brillance animé */}
+                                                {isUnlocked && (
+                                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+                                                )}
+
+                                                <div className="relative p-5">
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <div className="flex items-center gap-3">
+                                                            {/* Badge d'âge */}
+                                                            <div className="w-14 h-14 rounded-2xl bg-white/30 backdrop-blur-sm flex items-center justify-center text-3xl shadow-xl border-2 border-white/50">
+                                                                {isUnlocked ? ageEmojis[ageKey] : '🔒'}
+                                                            </div>
+
+                                                            <div>
+                                                                <h3 className="text-xl font-black text-white mb-1 drop-shadow-lg">
+                                                                    {ageLabels[ageKey]}
+                                                                </h3>
+                                                                <p className="text-sm text-white/90 font-medium">
+                                                                    {isUnlocked
+                                                                        ? `${completedCount}/${totalAccomplishments} compétences`
+                                                                        : `Déblocage : ${parseInt(ageKey.replace('months', '')) * 30} jours`
+                                                                    }
+                                                                </p>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Badge de statut */}
+                                                        <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-xl ${isCompleted
+                                                            ? 'bg-gradient-to-br from-yellow-300 to-yellow-500'
+                                                            : 'bg-white/30 backdrop-blur-sm'
                                                             }`}>
                                                             {!isUnlocked ? (
-                                                                <i className="fas fa-lock text-gray-500"></i>
-                                                            ) : progressPercent === 100 ? (
-                                                                <i className="fas fa-trophy text-white"></i>
+                                                                <i className="fas fa-lock text-white text-xl"></i>
+                                                            ) : isCompleted ? (
+                                                                <i className="fas fa-crown text-white text-xl"></i>
                                                             ) : (
-                                                                <i className="fas fa-medal text-white"></i>
+                                                                <span className="text-white text-lg font-black">{progressPercent}%</span>
                                                             )}
                                                         </div>
-                                                        <div>
-                                                            <h3 className="font-bold text-gray-900">{ageLabels[ageKey]}</h3>
-                                                            <p className="text-sm text-gray-600">
-                                                                {isUnlocked ? `${completedCount}/${totalAccomplishments} accomplis` : 'Bientôt débloqué'}
-                                                            </p>
+                                                    </div>
+
+                                                    {/* Barre de progression élégante */}
+                                                    {isUnlocked && (
+                                                        <div className="relative">
+                                                            <div className="w-full bg-white/20 backdrop-blur-sm rounded-full h-3 overflow-hidden shadow-inner">
+                                                                <div
+                                                                    className="h-full bg-gradient-to-r from-white/80 to-white rounded-full transition-all duration-500 relative"
+                                                                    style={{ width: `${progressPercent}%` }}
+                                                                >
+                                                                    {progressPercent > 0 && (
+                                                                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent "></div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Étincelles de complétion */}
+                                                            {isCompleted && (
+                                                                <div className="absolute -top-1 -right-1">
+                                                                    <div className="text-yellow-300 text-xl animate-ping">✨</div>
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <div className="text-2xl font-bold text-gray-800">{progressPercent}%</div>
-                                                        {progressPercent === 100 && (
-                                                            <div className="text-xs text-yellow-600 font-medium">TERMINÉ!</div>
-                                                        )}
-                                                    </div>
+                                                    )}
                                                 </div>
-
-                                                {/* Barre de progression */}
-                                                <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
-                                                    <div
-                                                        className={`h-3 rounded-full transition-all duration-500 ${progressPercent === 100 ? 'bg-gradient-to-r from-yellow-400 to-yellow-600' :
-                                                            'bg-gradient-to-r from-blue-400 to-blue-600'
-                                                            }`}
-                                                        style={{ width: `${progressPercent}%` }}
-                                                    ></div>
-                                                </div>
-
-                                                {!isUnlocked && (
-                                                    <div className="text-xs text-gray-500 mt-2">
-                                                        Débloqué à {parseInt(ageKey.replace('months', ''))} mois ({parseInt(ageKey.replace('months', '')) * 30} jours)
-                                                    </div>
-                                                )}
                                             </div>
                                         );
                                     })}
                                 </div>
                             </div>
-                        )}
-
-                        {/* Modal détail des accomplissements */}
+                        )}{/* Modal détail des accomplissements - Version gamifiée */}
                         {showAccomplishments && (
-                            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
-                                <div className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto relative">
-                                    {/* Header */}
-                                    <div className="sticky top-0 bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-t-3xl z-10">
+                            <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+                                <div className="bg-white w-full sm:max-w-md rounded-3xl max-h-[90vh] overflow-y-auto relative shadow-2xl">
+                                    {/* Header avec gradient */}
+                                    <div className="sticky top-0 bg-gradient-to-r from-purple-500 to-pink-500 text-white p-6 rounded-t-3xl z-10">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                                                    <i className="fas fa-trophy text-xl"></i>
+                                                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                                                    <i className="fas fa-gamepad text-xl"></i>
                                                 </div>
                                                 <div>
-                                                    <h3 className="text-xl font-bold">Accomplissements</h3>
-                                                    <p className="text-sm opacity-80">
+                                                    <h3 className="text-xl font-bold">Compétences</h3>
+                                                    <p className="text-sm opacity-90">
                                                         {currentMilestoneAge === '2months' ? '2 mois' :
                                                             currentMilestoneAge === '4months' ? '4 mois' :
                                                                 currentMilestoneAge === '6months' ? '6 mois' : '9 mois'}
@@ -5997,61 +6503,55 @@ ${allExportEntries.length > 0
                                             </div>
                                             <button
                                                 onClick={() => setShowAccomplishments(false)}
-                                                className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center"
+                                                className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center hover:bg-white/30 transition"
                                             >
                                                 <i className="fas fa-times text-lg"></i>
                                             </button>
                                         </div>
                                     </div>
 
-                                    {/* Onglets catégories */}
-                                    <div className="p-4">
-                                        <div className="grid grid-cols-2 gap-2 mb-4">
+                                    {/* Onglets catégories avec design gaming */}
+                                    <div className="p-4 sticky top-24 bg-white z-10 border-b">
+                                        <div className="grid grid-cols-2 gap-2">
                                             {[
-                                                { id: 'movement', label: 'Mouvement', icon: 'fa-running' },
-                                                { id: 'cognitive', label: 'Cognitif', icon: 'fa-brain' },
-                                                { id: 'language', label: 'Langage', icon: 'fa-comments' },
-                                                { id: 'social', label: 'Social', icon: 'fa-users' }
+                                                { id: 'movement', label: 'Mouvement', icon: 'fa-running', color: 'blue' },
+                                                { id: 'cognitive', label: 'Cognitif', icon: 'fa-brain', color: 'purple' },
+                                                { id: 'language', label: 'Langage', icon: 'fa-comments', color: 'green' },
+                                                { id: 'social', label: 'Social', icon: 'fa-users', color: 'pink' }
                                             ].map(cat => {
-                                                // Calculer si la catégorie est complètement validée
                                                 const categoryAccomplishments = accomplishmentData[currentMilestoneAge]?.[cat.id] || [];
                                                 const completedInCategory = categoryAccomplishments.filter(item =>
                                                     accomplishments[currentMilestoneAge]?.[item] === 'complete'
                                                 ).length;
                                                 const isFullyCompleted = completedInCategory === categoryAccomplishments.length && categoryAccomplishments.length > 0;
-                                                const hasProgress = completedInCategory > 0;
 
                                                 return (
                                                     <button
                                                         key={cat.id}
                                                         onClick={() => setSelectedCategory(cat.id)}
-                                                        className={`relative flex flex-col items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium transition-all ${selectedCategory === cat.id
-                                                            ? 'bg-purple-100 text-purple-700 border-2 border-purple-300'
-                                                            : 'bg-gray-100 text-gray-600 border-2 border-gray-200'
+                                                        className={`relative flex flex-col items-center gap-2 px-3 py-3 rounded-2xl font-medium transition-all ${selectedCategory === cat.id
+                                                            ? `bg-${cat.color}-100 text-${cat.color}-700 border-2 border-${cat.color}-300 shadow-lg scale-105`
+                                                            : 'bg-gray-50 text-gray-600 border-2 border-gray-200'
                                                             }`}
                                                     >
                                                         <div className="relative">
-                                                            <i className={`fas ${cat.icon} text-sm`}></i>
-                                                            {/* Badge de validation */}
+                                                            <i className={`fas ${cat.icon} text-xl`}></i>
                                                             {isFullyCompleted && (
-                                                                <div className="absolute -top-1 -right-2 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
-                                                                    <i className="fas fa-check text-white text-xs"></i>
-                                                                </div>
-                                                            )}
-                                                            {/* Badge de progression partielle */}
-                                                            {hasProgress && !isFullyCompleted && (
-                                                                <div className="absolute -top-1 -right-2 w-4 h-4 bg-orange-500 rounded-full flex items-center justify-center">
-                                                                    <span className="text-white text-xs font-bold">{completedInCategory}</span>
+                                                                <div className="absolute -top-2 -right-2 w-5 h-5 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg ">
+                                                                    <i className="fas fa-star text-white text-xs"></i>
                                                                 </div>
                                                             )}
                                                         </div>
-                                                        <span>{cat.label}</span>
-                                                        {/* Barre de progression sous le texte */}
+                                                        <span className="text-xs font-bold">{cat.label}</span>
+
+                                                        {/* Mini barre de progression */}
                                                         {categoryAccomplishments.length > 0 && (
-                                                            <div className="w-full h-1 bg-gray-200 rounded-full mt-1">
+                                                            <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
                                                                 <div
-                                                                    className={`h-1 rounded-full transition-all duration-300 ${isFullyCompleted ? 'bg-green-500' : 'bg-orange-500'
-                                                                        }`}
+                                                                    className={`h-full bg-gradient-to-r ${isFullyCompleted
+                                                                        ? 'from-yellow-400 to-orange-500'
+                                                                        : `from-${cat.color}-400 to-${cat.color}-600`
+                                                                        } transition-all duration-500`}
                                                                     style={{
                                                                         width: `${Math.round((completedInCategory / categoryAccomplishments.length) * 100)}%`
                                                                     }}
@@ -6062,54 +6562,85 @@ ${allExportEntries.length > 0
                                                 );
                                             })}
                                         </div>
+                                    </div>
+                                    {/* Liste des accomplissements avec icônes animées */}
+                                    <div className="p-4 space-y-3 pb-24">
+                                        {accomplishmentData[currentMilestoneAge]?.[selectedCategory]?.map((item, index) => {
+                                            const accomplishmentText = item.replace('{babyName}', user?.babyName || 'bébé');
+                                            const status = accomplishments[currentMilestoneAge]?.[item] || 'none';
+                                            const { icon, animation, color } = getAccomplishmentVisual(accomplishmentText);
 
-                                        {/* Liste des accomplissements */}
-                                        <div className="space-y-3">
-                                            {accomplishmentData[currentMilestoneAge]?.[selectedCategory]?.map((item, index) => {
-                                                const accomplishmentText = item.replace('{babyName}', user?.babyName || 'bébé');
-                                                const status = accomplishments[currentMilestoneAge]?.[item] || 'none';
+                                            return (
+                                                <div
+                                                    key={index}
+                                                    className={`relative overflow-hidden rounded-2xl transition-all duration-300 ${status === 'complete'
+                                                        ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 shadow-lg'
+                                                        : status === 'partial'
+                                                            ? 'bg-gradient-to-br from-orange-50 to-yellow-50 border-2 border-orange-300'
+                                                            : 'bg-white border-2 border-gray-200'
+                                                        }`}
+                                                >
+                                                    {/* Effet de brillance pour complétés */}
+                                                    {status === 'complete' && (
+                                                        <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-yellow-200/50 to-transparent rounded-bl-full"></div>
+                                                    )}
 
-                                                return (
-                                                    <div key={index} className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
-                                                        <p className="text-sm text-gray-800 mb-3 font-medium leading-relaxed">
-                                                            {accomplishmentText}
-                                                        </p>
+                                                    <div className="relative p-4">
+                                                        {/* Icône illustrative avec animation */}
+                                                        <div className={`accomplishment-icon bg-gradient-to-br ${color} rounded-3xl p-4 animate-[${animation}_2s_ease-in-out_infinite]`}>
+                                                            {icon}
+                                                        </div>
 
+                                                        {/* Texte de la compétence */}
+                                                        <div className="mb-3">
+                                                            <p className="text-sm text-gray-800 font-medium leading-relaxed text-center">
+                                                                {accomplishmentText}
+                                                            </p>
+                                                        </div>
+
+                                                        {/* Boutons d'action */}
                                                         <div className="flex gap-2">
                                                             <button
                                                                 onClick={() => {
                                                                     setSelectedMilestone({ age: currentMilestoneAge, item, status: 'partial' });
-                                                                    setShowAccomplishments(false); // Fermer le menu
+                                                                    setShowAccomplishments(false);
                                                                 }}
-                                                                className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium border-2 transition-all ${status === 'partial'
-                                                                    ? 'bg-orange-100 text-orange-700 border-orange-300'
-                                                                    : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'
+                                                                className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all active:scale-95 ${status === 'partial'
+                                                                    ? 'bg-gradient-to-r from-orange-400 to-yellow-500 text-white shadow-lg border-2 border-orange-300'
+                                                                    : 'bg-gray-100 text-gray-700 border-2 border-gray-200 hover:border-orange-300'
                                                                     }`}
                                                             >
-                                                                Partielle
+                                                                <i className="fas fa-star-half-alt mr-2"></i>
+                                                                En cours
                                                             </button>
                                                             <button
                                                                 onClick={() => {
                                                                     setSelectedMilestone({ age: currentMilestoneAge, item, status: 'complete' });
-                                                                    setShowAccomplishments(false); // Fermer le menu
+                                                                    setShowAccomplishments(false);
                                                                 }}
-                                                                className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium border-2 transition-all ${status === 'complete'
-                                                                    ? 'bg-green-100 text-green-700 border-green-300'
-                                                                    : 'bg-white text-gray-600 border-gray-200 hover:border-green-300'
+                                                                className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all active:scale-95 ${status === 'complete'
+                                                                    ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white shadow-lg border-2 border-green-300'
+                                                                    : 'bg-gray-100 text-gray-700 border-2 border-gray-200 hover:border-green-300'
                                                                     }`}
                                                             >
-                                                                Complète
-                                                            </button> </div>
+                                                                <i className="fas fa-trophy mr-2"></i>
+                                                                Maîtrisé
+                                                            </button>
+                                                        </div>
 
+                                                        {/* Badge de statut */}
                                                         {status !== 'none' && (
-                                                            <div className="mt-2 text-xs text-gray-500">
-                                                                {status === 'partial' ? 'En cours d\'acquisition' : 'Maîtrisé'}
+                                                            <div className={`mt-3 text-center py-2 px-3 rounded-lg text-xs font-bold ${status === 'complete'
+                                                                ? 'bg-green-100 text-green-700'
+                                                                : 'bg-orange-100 text-orange-700'
+                                                                }`}>
+                                                                {status === 'complete' ? '🎉 Compétence débloquée !' : '⏳ En apprentissage'}
                                                             </div>
                                                         )}
                                                     </div>
-                                                );
-                                            })}
-                                        </div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
@@ -6183,7 +6714,6 @@ ${allExportEntries.length > 0
                                                         accomplishments: newAccomplishments,
                                                         lastAccomplishmentUpdate: new Date().toISOString()
                                                     });
-                                                    console.log('Accomplissements sauvegardés avec succès');
                                                 } catch (error) {
                                                     console.error('Erreur sauvegarde accomplissements:', error);
                                                     // Afficher un message d'erreur à l'utilisateur
@@ -6256,6 +6786,245 @@ ${allExportEntries.length > 0
                                                 }`}
                                         >
                                             Enregistrer
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {/* Pop-up de mise à jour */}
+                        {showUpdatePopup && (
+                            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[100]" style={{ margin: 0, padding: '1rem' }}>
+                                <div className="bg-white rounded-3xl max-w-sm w-full shadow-2xl overflow-hidden relative">
+                                    {/* Confettis décoratifs */}
+                                    <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
+
+                                    {/* Icône animée */}
+                                    <div className="relative pt-8 pb-4">
+                                        <div className="w-24 h-24 mx-auto bg-gradient-to-br from-blue-400 to-purple-600 rounded-full flex items-center justify-center shadow-xl animate-bounce">
+                                            <i className="fas fa-gift text-white text-4xl"></i>
+                                        </div>
+                                        {/* Étoiles décoratives */}
+                                        <div className="absolute top-8 left-1/4 text-yellow-400 text-2xl animate-pulse">✨</div>
+                                        <div className="absolute top-12 right-1/4 text-yellow-400 text-xl animate-pulse" style={{ animationDelay: '0.3s' }}>⭐</div>
+                                        <div className="absolute top-16 left-1/3 text-yellow-400 text-lg animate-pulse" style={{ animationDelay: '0.6s' }}>💫</div>
+                                    </div>
+
+                                    {/* Contenu */}
+                                    <div className="px-6 pb-6 text-center">
+                                        <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                                            🎉 Nouvelle mise à jour !
+                                        </h3>
+                                        <p className="text-sm text-gray-600 mb-4">Version 1.2.0</p>
+
+                                        {/* Liste des nouveautés */}
+                                        <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-4 mb-6 text-left">
+                                            <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                                <i className="fas fa-sparkles text-purple-600"></i>
+                                                Quoi de neuf ?
+                                            </h4>
+                                            <div className="space-y-2 text-sm text-gray-700">
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                        <i className="fas fa-check text-white text-xs"></i>
+                                                    </div>
+                                                    <p><strong>Chargement rapide</strong> : L'application s'ouvre maintenant plus rapidement !</p>
+                                                </div>
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                        <i className="fas fa-check text-white text-xs"></i>
+                                                    </div>
+                                                    <p><strong>Sommeil amélioré</strong> : Les siestes qui dépassent minuit sont maintenant parfaitement comptées !</p>
+                                                </div>
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                        <i className="fas fa-check text-white text-xs"></i>
+                                                    </div>
+                                                    <p><strong>Âge précis</strong> : L'âge de bébé est maintenant calculé au jour près, sans erreur !</p>
+                                                </div>
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                        <i className="fas fa-check text-white text-xs"></i>
+                                                    </div>
+                                                    <p><strong>Modification facile</strong> : Corriger une session de sommeil est maintenant plus simple !</p>
+                                                </div>
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                        <i className="fas fa-check text-white text-xs"></i>
+                                                    </div>
+                                                    <p><strong>Accomplissements repensés</strong> : Suivez les progrès de bébé avec de jolies animations et un système de progression ludique !</p>
+                                                </div>
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                        <i className="fas fa-check text-white text-xs"></i>
+                                                    </div>
+                                                    <p><strong>Installation guidée</strong> : Un joli guide pour installer l'application sur votre téléphone comme une vraie app !</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {/* Message de remerciement */}
+                                        <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-3 mb-6">
+                                            <p className="text-xs text-gray-600 leading-relaxed">
+                                                Merci d'utiliser BabyTrack !
+                                            </p>
+                                        </div>
+
+                                        {/* Bouton */}
+                                        <button
+                                            onClick={closeUpdatePopup}
+                                            className={`w-full bg-gradient-to-r ${themeColors.primary} text-white py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform`}
+                                        >
+                                            C'est parti ! 🚀
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {/* Pop-up PWA - Suggestion */}
+                        {showPWAPopup && pwaPopupType === 'suggest' && (
+                            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]" style={{ margin: 0, padding: '1rem' }}>
+                                <div className="bg-white rounded-3xl max-w-sm w-full shadow-2xl overflow-hidden relative">
+                                    {/* Le reste du contenu identique... */}
+                                    <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
+
+                                    <div className="relative pt-8 pb-4">
+                                        <div className="w-24 h-24 mx-auto bg-gradient-to-br from-indigo-400 to-purple-600 rounded-full flex items-center justify-center shadow-xl">
+                                            <i className="fas fa-mobile-alt text-white text-4xl"></i>
+                                        </div>
+                                        <div className="absolute top-8 left-1/4 text-2xl">📱</div>
+                                        <div className="absolute top-12 right-1/4 text-xl" style={{ animationDelay: '0.3s' }}>✨</div>
+                                    </div>
+
+                                    <div className="px-6 pb-6 text-center">
+                                        <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                                            📲 Installer BabyTrack
+                                        </h3>
+                                        <p className="text-sm text-gray-600 mb-6">
+                                            Pour une meilleure expérience, ajoutez BabyTrack à votre écran d'accueil !
+                                        </p>
+
+                                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-4 mb-6 text-left">
+                                            <div className="space-y-3 text-sm text-gray-700">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                                        <i className="fas fa-bolt text-white text-xs"></i>
+                                                    </div>
+                                                    <p><strong>Accès rapide</strong> depuis l'écran d'accueil</p>
+                                                </div>
+                                                {/* <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                <i className="fas fa-bell text-white text-xs"></i>
+                            </div>
+                            <p><strong>Notifications</strong> pour les rappels</p>
+                        </div>*/}
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                                        <i className="fas fa-expand text-white text-xs"></i>
+                                                    </div>
+                                                    <p><strong>Mode plein écran</strong> comme une vraie app</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <button
+                                                onClick={() => {
+                                                    setShowPWAPopup(false);
+                                                    setPwaPopupType('instructions');
+                                                    setTimeout(() => setShowPWAPopup(true), 100);
+                                                }}
+                                                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform"
+                                            >
+                                                Comment faire ? 📖
+                                            </button>
+                                            <button
+                                                onClick={() => setShowPWAPopup(false)}
+                                                className="w-full bg-gray-100 text-gray-700 py-3 rounded-2xl font-medium active:scale-95 transition-transform"
+                                            >
+                                                Plus tard
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Pop-up PWA - Instructions */}
+                        {showPWAPopup && pwaPopupType === 'instructions' && (
+                            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]" style={{ margin: 0, padding: '1rem' }}>
+                                <div className="bg-white rounded-3xl max-w-sm w-full shadow-2xl overflow-hidden relative">
+                                    <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-green-500 via-teal-500 to-cyan-500"></div>
+
+                                    <div className="relative pt-6 pb-4 px-6">
+                                        <button
+                                            onClick={() => setShowPWAPopup(false)}
+                                            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center"
+                                        >
+                                            <i className="fas fa-times text-gray-600"></i>
+                                        </button>
+                                        <div className="w-16 h-16 mx-auto bg-gradient-to-br from-green-400 to-teal-600 rounded-full flex items-center justify-center shadow-lg mb-3">
+                                            <i className="fas fa-info-circle text-white text-2xl"></i>
+                                        </div>
+                                        <h3 className="text-xl font-bold text-gray-900 text-center">
+                                            Installation sur iOS
+                                        </h3>
+                                    </div>
+
+                                    <div className="px-6 pb-6">
+                                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-4 mb-4">
+                                            <div className="space-y-4 text-sm text-gray-700">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white">
+                                                        1
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="font-semibold text-gray-900 mb-1">Appuyez sur le bouton Partager</p>
+                                                        <div className="flex items-center gap-2 text-gray-600">
+                                                            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                                                <i className="fas fa-share text-blue-600"></i>
+                                                            </div>
+                                                            <span className="text-xs">(en bas de Safari)</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-start gap-3">
+                                                    <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white">
+                                                        2
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="font-semibold text-gray-900 mb-1">Sélectionnez "Sur l'écran d'accueil"</p>
+                                                        <div className="flex items-center gap-2 text-gray-600">
+                                                            <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                                                                <i className="fas fa-plus-square text-indigo-600"></i>
+                                                            </div>
+                                                            <span className="text-xs">(faites défiler le menu)</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-start gap-3">
+                                                    <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white">
+                                                        3
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <p className="font-semibold text-gray-900 mb-1">Appuyez sur "Ajouter"</p>
+                                                        <p className="text-xs text-gray-600">L'icône apparaîtra sur votre écran d'accueil !</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-xl p-3 mb-4">
+                                            <p className="text-xs text-gray-600 text-center leading-relaxed">
+                                                🎉 Une fois installée, BabyTrack fonctionnera comme une vraie application !
+                                            </p>
+                                        </div>
+
+                                        <button
+                                            onClick={() => setShowPWAPopup(false)}
+                                            className="w-full bg-gradient-to-r from-green-500 to-teal-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform"
+                                        >
+                                            Compris ! 👍
                                         </button>
                                     </div>
                                 </div>
