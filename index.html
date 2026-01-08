@@ -246,6 +246,14 @@
             font-size: 48px;
             filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
         }
+
+        /* Bloquer le scroll du body quand modal ouvert */
+        body.modal-open {
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
     </style>
 
     <!-- Logo BabyTrack en SVG -->
@@ -1530,47 +1538,44 @@
                 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
                 if (isIOS && user && !isLoading) {
-
-                    // Vérifier si l'app est en mode PWA
                     const isStandalone = window.navigator.standalone === true;
                     const currentVersion = '1.2.0';
                     const lastSeenVersion = localStorage.getItem('babytrack_last_version');
 
                     if (!isStandalone) {
-                        // Calculer le délai : si pop-up MAJ s'affiche, attendre 10 secondes, sinon 2 secondes
                         const delay = lastSeenVersion !== currentVersion ? 10000 : 2000;
 
                         setTimeout(() => {
                             setPwaPopupType('suggest');
                             setShowPWAPopup(true);
+                            // Bloquer le scroll du body
+                            document.body.classList.add('modal-open');
                         }, delay);
                     }
                 }
             }, [user, isLoading]);
-            // Vérifier si la pop-up de mise à jour doit s'afficher
+            // VÉrifier si la pop-up de mise à jour doit s'afficher
             useEffect(() => {
-
-
+                if (!user || isLoading) return;
 
                 const currentVersion = '1.2.0';
                 const lastSeenVersion = localStorage.getItem('babytrack_last_version');
 
-
-
                 if (lastSeenVersion !== currentVersion) {
                     const timer = setTimeout(() => {
                         setShowUpdatePopup(true);
+                        // Bloquer le scroll du body
+                        document.body.classList.add('modal-open');
                     }, 1500);
-
                     return () => clearTimeout(timer);
                 }
             }, [user, isLoading]);
-
-            // Fonction pour fermer la pop-up et marquer comme vue
             const closeUpdatePopup = () => {
                 const currentVersion = '1.2.0';
                 localStorage.setItem('babytrack_last_version', currentVersion);
                 setShowUpdatePopup(false);
+                // Débloquer le scroll du body
+                document.body.classList.remove('modal-open');
             };
             // Authentification
             const handleCreateAccount = async () => {
@@ -6925,13 +6930,18 @@ ${allExportEntries.length > 0
                                                     setShowPWAPopup(false);
                                                     setPwaPopupType('instructions');
                                                     setTimeout(() => setShowPWAPopup(true), 100);
+                                                    // Le body reste bloqué car on réouvre directement
                                                 }}
                                                 className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3 rounded-2xl font-bold text-base shadow-lg active:scale-95 transition-transform"
                                             >
                                                 Comment faire ? 📖
                                             </button>
                                             <button
-                                                onClick={() => setShowPWAPopup(false)}
+                                                onClick={() => {
+                                                    setShowPWAPopup(false);
+                                                    // Débloquer le scroll du body
+                                                    document.body.classList.remove('modal-open');
+                                                }}
                                                 className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-2xl font-medium text-sm active:scale-95 transition-transform"
                                             >
                                                 Plus tard
@@ -6949,7 +6959,11 @@ ${allExportEntries.length > 0
 
                                     <div className="relative pt-5 pb-3 px-5">
                                         <button
-                                            onClick={() => setShowPWAPopup(false)}
+                                            onClick={() => {
+                                                setShowPWAPopup(false);
+                                                // Débloquer le scroll du body
+                                                document.body.classList.remove('modal-open');
+                                            }}
                                             className="absolute top-3 right-3 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center"
                                         >
                                             <i className="fas fa-times text-gray-600 text-xs"></i>
@@ -7014,7 +7028,11 @@ ${allExportEntries.length > 0
                                         </div>
 
                                         <button
-                                            onClick={() => setShowPWAPopup(false)}
+                                            onClick={() => {
+                                                setShowPWAPopup(false);
+                                                // Débloquer le scroll du body
+                                                document.body.classList.remove('modal-open');
+                                            }}
                                             className="w-full bg-gradient-to-r from-green-500 to-teal-600 text-white py-3 rounded-2xl font-bold text-base shadow-lg active:scale-95 transition-transform"
                                         >
                                             Compris ! 👍
