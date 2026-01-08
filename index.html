@@ -6794,84 +6794,85 @@ ${allExportEntries.length > 0
                         {/* Pop-up de mise à jour */}
                         {showUpdatePopup && (
                             <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[100]" style={{ margin: 0, padding: '1rem' }}>
-                                <div className="bg-white rounded-3xl max-w-sm w-full shadow-2xl overflow-hidden relative">
+                                <div className="bg-white rounded-3xl w-full max-w-sm max-h-[85vh] overflow-y-auto shadow-2xl relative">
                                     {/* Confettis décoratifs */}
                                     <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
 
                                     {/* Icône animée */}
-                                    <div className="relative pt-8 pb-4">
-                                        <div className="w-24 h-24 mx-auto bg-gradient-to-br from-blue-400 to-purple-600 rounded-full flex items-center justify-center shadow-xl animate-bounce">
-                                            <i className="fas fa-gift text-white text-4xl"></i>
+                                    <div className="relative pt-6 pb-3">
+                                        <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-400 to-purple-600 rounded-full flex items-center justify-center shadow-xl">
+                                            <i className="fas fa-gift text-white text-3xl"></i>
                                         </div>
                                         {/* Étoiles décoratives */}
-                                        <div className="absolute top-8 left-1/4 text-yellow-400 text-2xl animate-pulse">✨</div>
-                                        <div className="absolute top-12 right-1/4 text-yellow-400 text-xl animate-pulse" style={{ animationDelay: '0.3s' }}>⭐</div>
-                                        <div className="absolute top-16 left-1/3 text-yellow-400 text-lg animate-pulse" style={{ animationDelay: '0.6s' }}>💫</div>
+                                        <div className="absolute top-6 left-1/4 text-yellow-400 text-xl">✨</div>
+                                        <div className="absolute top-10 right-1/4 text-yellow-400 text-lg" style={{ animationDelay: '0.3s' }}>⭐</div>
+                                        <div className="absolute top-14 left-1/3 text-yellow-400 text-base" style={{ animationDelay: '0.6s' }}>💫</div>
                                     </div>
 
                                     {/* Contenu */}
-                                    <div className="px-6 pb-6 text-center">
-                                        <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                                    <div className="px-5 pb-5 text-center">
+                                        <h3 className="text-xl font-bold text-gray-900 mb-1">
                                             🎉 Nouvelle mise à jour !
                                         </h3>
-                                        <p className="text-sm text-gray-600 mb-4">Version 1.2.0</p>
+                                        <p className="text-xs text-gray-600 mb-3">Version 1.2.0</p>
 
                                         {/* Liste des nouveautés */}
-                                        <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-4 mb-6 text-left">
-                                            <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                        <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-3 mb-4 text-left">
+                                            <h4 className="font-bold text-gray-800 mb-2 flex items-center gap-2 text-sm">
                                                 <i className="fas fa-sparkles text-purple-600"></i>
                                                 Quoi de neuf ?
                                             </h4>
-                                            <div className="space-y-2 text-sm text-gray-700">
+                                            <div className="space-y-1.5 text-xs text-gray-700">
                                                 <div className="flex items-start gap-2">
-                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                        <i className="fas fa-check text-white text-xs"></i>
+                                                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                        <i className="fas fa-check text-white text-[8px]"></i>
                                                     </div>
-                                                    <p><strong>Chargement rapide</strong> : L'application s'ouvre maintenant plus rapidement !</p>
+                                                    <p><strong>Chargement ultra-rapide</strong> : L'application s'ouvre en un clin d'œil !</p>
                                                 </div>
                                                 <div className="flex items-start gap-2">
-                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                        <i className="fas fa-check text-white text-xs"></i>
+                                                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                        <i className="fas fa-check text-white text-[8px]"></i>
                                                     </div>
-                                                    <p><strong>Sommeil amélioré</strong> : Les siestes qui dépassent minuit sont maintenant parfaitement comptées !</p>
+                                                    <p><strong>Sommeil amélioré</strong> : Les siestes qui dépassent minuit sont parfaitement comptées !</p>
                                                 </div>
                                                 <div className="flex items-start gap-2">
-                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                        <i className="fas fa-check text-white text-xs"></i>
+                                                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                        <i className="fas fa-check text-white text-[8px]"></i>
                                                     </div>
-                                                    <p><strong>Âge précis</strong> : L'âge de bébé est maintenant calculé au jour près, sans erreur !</p>
+                                                    <p><strong>Âge ultra précis</strong> : L'âge de bébé est calculé au jour près !</p>
                                                 </div>
                                                 <div className="flex items-start gap-2">
-                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                        <i className="fas fa-check text-white text-xs"></i>
+                                                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                        <i className="fas fa-check text-white text-[8px]"></i>
                                                     </div>
-                                                    <p><strong>Modification facile</strong> : Corriger une session de sommeil est maintenant plus simple !</p>
+                                                    <p><strong>Modification facile</strong> : Corriger une session de sommeil est plus simple</p>
                                                 </div>
                                                 <div className="flex items-start gap-2">
-                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                        <i className="fas fa-check text-white text-xs"></i>
+                                                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                        <i className="fas fa-check text-white text-[8px]"></i>
                                                     </div>
-                                                    <p><strong>Accomplissements repensés</strong> : Suivez les progrès de bébé avec de jolies animations et un système de progression ludique !</p>
+                                                    <p><strong>Accomplissements repensés</strong> : Suivez les progrès avec animations et progression ludique !</p>
                                                 </div>
                                                 <div className="flex items-start gap-2">
-                                                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                        <i className="fas fa-check text-white text-xs"></i>
+                                                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                        <i className="fas fa-check text-white text-[8px]"></i>
                                                     </div>
-                                                    <p><strong>Installation guidée</strong> : Un joli guide pour installer l'application sur votre téléphone comme une vraie app !</p>
+                                                    <p><strong>Installation guidée</strong> : Guide pour installer l'app sur votre téléphone</p>
                                                 </div>
                                             </div>
                                         </div>
+
                                         {/* Message de remerciement */}
-                                        <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-3 mb-6">
-                                            <p className="text-xs text-gray-600 leading-relaxed">
-                                                Merci d'utiliser BabyTrack !
+                                        <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-2 mb-4">
+                                            <p className="text-[10px] text-gray-600 leading-relaxed">
+                                                👍 Merci d'utiliser BabyTrack ! Nous travaillons chaque jour pour améliorer votre expérience.
                                             </p>
                                         </div>
 
                                         {/* Bouton */}
                                         <button
                                             onClick={closeUpdatePopup}
-                                            className={`w-full bg-gradient-to-r ${themeColors.primary} text-white py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform`}
+                                            className={`w-full bg-gradient-to-r ${themeColors.primary} text-white py-3 rounded-2xl font-bold text-base shadow-lg active:scale-95 transition-transform`}
                                         >
                                             C'est parti ! 🚀
                                         </button>
@@ -6882,63 +6883,56 @@ ${allExportEntries.length > 0
                         {/* Pop-up PWA - Suggestion */}
                         {showPWAPopup && pwaPopupType === 'suggest' && (
                             <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]" style={{ margin: 0, padding: '1rem' }}>
-                                <div className="bg-white rounded-3xl max-w-sm w-full shadow-2xl overflow-hidden relative">
-                                    {/* Le reste du contenu identique... */}
+                                <div className="bg-white rounded-3xl w-full max-w-sm max-h-[85vh] overflow-y-auto shadow-2xl relative">
                                     <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
 
-                                    <div className="relative pt-8 pb-4">
-                                        <div className="w-24 h-24 mx-auto bg-gradient-to-br from-indigo-400 to-purple-600 rounded-full flex items-center justify-center shadow-xl">
-                                            <i className="fas fa-mobile-alt text-white text-4xl"></i>
+                                    <div className="relative pt-6 pb-3">
+                                        <div className="w-20 h-20 mx-auto bg-gradient-to-br from-indigo-400 to-purple-600 rounded-full flex items-center justify-center shadow-xl">
+                                            <i className="fas fa-mobile-alt text-white text-3xl"></i>
                                         </div>
-                                        <div className="absolute top-8 left-1/4 text-2xl">📱</div>
-                                        <div className="absolute top-12 right-1/4 text-xl" style={{ animationDelay: '0.3s' }}>✨</div>
+                                        <div className="absolute top-6 left-1/4 text-xl">📱</div>
+                                        <div className="absolute top-10 right-1/4 text-lg" style={{ animationDelay: '0.3s' }}>✨</div>
                                     </div>
 
-                                    <div className="px-6 pb-6 text-center">
-                                        <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                                    <div className="px-5 pb-5 text-center">
+                                        <h3 className="text-xl font-bold text-gray-900 mb-1">
                                             📲 Installer BabyTrack
                                         </h3>
-                                        <p className="text-sm text-gray-600 mb-6">
+                                        <p className="text-xs text-gray-600 mb-4">
                                             Pour une meilleure expérience, ajoutez BabyTrack à votre écran d'accueil !
                                         </p>
 
-                                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-4 mb-6 text-left">
-                                            <div className="space-y-3 text-sm text-gray-700">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                                        <i className="fas fa-bolt text-white text-xs"></i>
+                                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-3 mb-4 text-left">
+                                            <div className="space-y-2 text-xs text-gray-700">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                                        <i className="fas fa-bolt text-white text-[10px]"></i>
                                                     </div>
                                                     <p><strong>Accès rapide</strong> depuis l'écran d'accueil</p>
                                                 </div>
-                                                {/* <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                <i className="fas fa-bell text-white text-xs"></i>
-                            </div>
-                            <p><strong>Notifications</strong> pour les rappels</p>
-                        </div>*/}
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
-                                                        <i className="fas fa-expand text-white text-xs"></i>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-7 h-7 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                                        <i className="fas fa-expand text-white text-[10px]"></i>
                                                     </div>
                                                     <p><strong>Mode plein écran</strong> comme une vraie app</p>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="space-y-3">
+                                        <div className="space-y-2">
                                             <button
                                                 onClick={() => {
                                                     setShowPWAPopup(false);
                                                     setPwaPopupType('instructions');
                                                     setTimeout(() => setShowPWAPopup(true), 100);
                                                 }}
-                                                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform"
+                                                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-3 rounded-2xl font-bold text-base shadow-lg active:scale-95 transition-transform"
                                             >
                                                 Comment faire ? 📖
                                             </button>
                                             <button
                                                 onClick={() => setShowPWAPopup(false)}
-                                                className="w-full bg-gray-100 text-gray-700 py-3 rounded-2xl font-medium active:scale-95 transition-transform"
+                                                className="w-full bg-gray-100 text-gray-700 py-2.5 rounded-2xl font-medium text-sm active:scale-95 transition-transform"
                                             >
                                                 Plus tard
                                             </button>
@@ -6947,82 +6941,81 @@ ${allExportEntries.length > 0
                                 </div>
                             </div>
                         )}
-
                         {/* Pop-up PWA - Instructions */}
                         {showPWAPopup && pwaPopupType === 'instructions' && (
                             <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]" style={{ margin: 0, padding: '1rem' }}>
-                                <div className="bg-white rounded-3xl max-w-sm w-full shadow-2xl overflow-hidden relative">
+                                <div className="bg-white rounded-3xl w-full max-w-sm max-h-[85vh] overflow-y-auto shadow-2xl relative">
                                     <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-green-500 via-teal-500 to-cyan-500"></div>
 
-                                    <div className="relative pt-6 pb-4 px-6">
+                                    <div className="relative pt-5 pb-3 px-5">
                                         <button
                                             onClick={() => setShowPWAPopup(false)}
-                                            className="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center"
+                                            className="absolute top-3 right-3 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center"
                                         >
-                                            <i className="fas fa-times text-gray-600"></i>
+                                            <i className="fas fa-times text-gray-600 text-xs"></i>
                                         </button>
-                                        <div className="w-16 h-16 mx-auto bg-gradient-to-br from-green-400 to-teal-600 rounded-full flex items-center justify-center shadow-lg mb-3">
-                                            <i className="fas fa-info-circle text-white text-2xl"></i>
+                                        <div className="w-14 h-14 mx-auto bg-gradient-to-br from-green-400 to-teal-600 rounded-full flex items-center justify-center shadow-lg mb-2">
+                                            <i className="fas fa-info-circle text-white text-xl"></i>
                                         </div>
-                                        <h3 className="text-xl font-bold text-gray-900 text-center">
+                                        <h3 className="text-lg font-bold text-gray-900 text-center">
                                             Installation sur iOS
                                         </h3>
                                     </div>
 
-                                    <div className="px-6 pb-6">
-                                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-4 mb-4">
-                                            <div className="space-y-4 text-sm text-gray-700">
-                                                <div className="flex items-start gap-3">
-                                                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white">
+                                    <div className="px-5 pb-5">
+                                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-3 mb-3">
+                                            <div className="space-y-3 text-xs text-gray-700">
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-7 h-7 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white text-xs">
                                                         1
                                                     </div>
-                                                    <div className="flex-1">
+                                                    <div className="flex-1 pt-0.5">
                                                         <p className="font-semibold text-gray-900 mb-1">Appuyez sur le bouton Partager</p>
-                                                        <div className="flex items-center gap-2 text-gray-600">
-                                                            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                                                                <i className="fas fa-share text-blue-600"></i>
+                                                        <div className="flex items-center gap-1.5 text-gray-600">
+                                                            <div className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center">
+                                                                <i className="fas fa-share text-blue-600 text-[10px]"></i>
                                                             </div>
-                                                            <span className="text-xs">(en bas de Safari)</span>
+                                                            <span className="text-[10px]">(en bas de Safari)</span>
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-start gap-3">
-                                                    <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white">
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-7 h-7 bg-indigo-500 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white text-xs">
                                                         2
                                                     </div>
-                                                    <div className="flex-1">
+                                                    <div className="flex-1 pt-0.5">
                                                         <p className="font-semibold text-gray-900 mb-1">Sélectionnez "Sur l'écran d'accueil"</p>
-                                                        <div className="flex items-center gap-2 text-gray-600">
-                                                            <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
-                                                                <i className="fas fa-plus-square text-indigo-600"></i>
+                                                        <div className="flex items-center gap-1.5 text-gray-600">
+                                                            <div className="w-6 h-6 bg-indigo-100 rounded-lg flex items-center justify-center">
+                                                                <i className="fas fa-plus-square text-indigo-600 text-[10px]"></i>
                                                             </div>
-                                                            <span className="text-xs">(faites défiler le menu)</span>
+                                                            <span className="text-[10px]">(faites défiler le menu)</span>
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                <div className="flex items-start gap-3">
-                                                    <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white">
+                                                <div className="flex items-start gap-2">
+                                                    <div className="w-7 h-7 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white text-xs">
                                                         3
                                                     </div>
-                                                    <div className="flex-1">
+                                                    <div className="flex-1 pt-0.5">
                                                         <p className="font-semibold text-gray-900 mb-1">Appuyez sur "Ajouter"</p>
-                                                        <p className="text-xs text-gray-600">L'icône apparaîtra sur votre écran d'accueil !</p>
+                                                        <p className="text-[10px] text-gray-600">L'icône apparaîtra sur votre écran d'accueil !</p>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-xl p-3 mb-4">
-                                            <p className="text-xs text-gray-600 text-center leading-relaxed">
+                                        <div className="bg-gradient-to-r from-green-50 to-teal-50 rounded-xl p-2 mb-3">
+                                            <p className="text-[10px] text-gray-600 text-center leading-relaxed">
                                                 🎉 Une fois installée, BabyTrack fonctionnera comme une vraie application !
                                             </p>
                                         </div>
 
                                         <button
                                             onClick={() => setShowPWAPopup(false)}
-                                            className="w-full bg-gradient-to-r from-green-500 to-teal-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition-transform"
+                                            className="w-full bg-gradient-to-r from-green-500 to-teal-600 text-white py-3 rounded-2xl font-bold text-base shadow-lg active:scale-95 transition-transform"
                                         >
                                             Compris ! 👍
                                         </button>
