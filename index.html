@@ -462,7 +462,8 @@
             });
             const [showBreastfeedingModal, setShowBreastfeedingModal] = useState(false);
             const [showBreastPumpModal, setShowBreastPumpModal] = useState(false);
-
+            const [showSuccessModal, setShowSuccessModal] = useState(false);
+            const [newFamilyCode, setNewFamilyCode] = useState('');
 
             // États pour les analytics
             const [analyticsFilter, setAnalyticsFilter] = useState(['feeding', 'diaper-pee']);
@@ -1600,30 +1601,32 @@
                 const familyCode = generateCode();
                 const familyData = {
                     code: familyCode,
-                    name: authData.name,
                     babyName: babyName,
                     birthDate: birthDate,
+                    birthTime: birthTime || '',
                     birthWeight: parseFloat(birthWeight) || 3.290,
                     birthHeight: parseInt(birthHeight) || 48,
                     parents: parents || 'Papa & Maman',
-                    gender: gender,
-                    accomplishments: {}, // Initialiser avec un objet vide
-                    feedingInterval: 3, // Intervalle par défaut
+                    gender: gender || 'boy',
+                    accomplishments: {},
+                    feedingInterval: 3,
                     createdAt: new Date().toISOString()
                 };
+
                 try {
                     await db.collection('families').doc(familyCode).set(familyData);
-                    alert(`Famille créée avec succès!\n\nCode famille: ${familyCode}\n\nNotez bien ce code!`);
+
+                    // Afficher la popup au lieu de l'alert
+                    setNewFamilyCode(familyCode);
+                    setShowSuccessModal(true);
 
                     setUser(familyData);
                     localStorage.setItem('familyCode', familyCode);
-                    setShowAuth(false);
                 } catch (error) {
                     console.error('Erreur création:', error);
-                    alert('Erreur lors de la création du compte');
+                    alert('Erreur lors de la création du compte: ' + error.message);
                 }
             };
-
             const handleLogin = async (code = authData.code) => {
                 if (!code || code.length !== 6) {
                     alert('Code famille invalide (6 caractères requis)');
@@ -3491,114 +3494,286 @@ ${allExportEntries.length > 0
             // Rendu conditionnel - Écran d'authentification
             if (showAuth) {
                 return (
-                    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
-                            <div className="text-center mb-6">
-                                <div className="inline-block mb-4">
-                                    <img src="logo.PNG" alt="BabyTrack Logo" className="w-40 h-40 mx-auto rounded-2xl" />                                </div>
-
-                            </div>
-
-                            {authMode === 'login' ? (
-                                <div className="space-y-4">
-                                    <h2 className="text-lg font-semibold">Se connecter</h2>
-                                    <input
-                                        type="text"
-                                        placeholder="Code famille (6 caractères)"
-                                        className="w-full border rounded-xl px-4 py-3 text-center uppercase"
-                                        maxLength="6"
-                                        value={authData.code}
-                                        onChange={(e) => setAuthData(prev => ({ ...prev, code: e.target.value }))}
-                                    />
-                                    <button
-                                        onClick={() => handleLogin()}
-                                        className="w-full bg-blue-500 text-white py-3 rounded-xl font-medium"
-                                    >
-                                        Se connecter
-                                    </button>
-                                    <button
-                                        onClick={() => setAuthMode('create')}
-                                        className="w-full bg-gray-200 text-gray-700 py-3 rounded-xl font-medium"
-                                    >
-                                        Créer un compte famille
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    <h2 className="text-lg font-semibold">Nouvelle famille</h2>
-                                    <input
-                                        type="text"
-                                        placeholder="Nom du bébé"
-                                        className="w-full border rounded-xl px-4 py-3"
-                                        value={authData.babyName}
-                                        onChange={(e) => setAuthData(prev => ({ ...prev, babyName: e.target.value }))}
-                                    />
-                                    <input
-                                        type="date"
-                                        className="w-full border rounded-xl px-4 py-3"
-                                        value={authData.birthDate}
-                                        onChange={(e) => setAuthData(prev => ({ ...prev, birthDate: e.target.value }))}
-                                    />
-                                    <input
-                                        type="time"
-                                        className="w-full border rounded-xl px-4 py-3"
-                                        value={authData.birthTime}
-                                        onChange={(e) => setAuthData(prev => ({ ...prev, birthTime: e.target.value }))}
-                                    />
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <input
-                                            type="number"
-                                            placeholder="Poids (kg)"
-                                            step="0.001"
-                                            className="w-full border rounded-xl px-4 py-3"
-                                            value={authData.birthWeight}
-                                            onChange={(e) => setAuthData(prev => ({ ...prev, birthWeight: e.target.value }))}
-                                        />
-                                        <input
-                                            type="number"
-                                            placeholder="Taille (cm)"
-                                            className="w-full border rounded-xl px-4 py-3"
-                                            value={authData.birthHeight}
-                                            onChange={(e) => setAuthData(prev => ({ ...prev, birthHeight: e.target.value }))}
-                                        />
+                    <>
+                        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-white/50">
+                                <div className="text-center mb-8">
+                                    <div className="inline-block mb-6">
+                                        <img src="logo.PNG" alt="BabyTrack Logo" className="w-32 h-32 mx-auto rounded-3xl shadow-lg" />
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Sexe</label>
-                                        <select
-                                            className="w-full border rounded-xl px-4 py-3"
-                                            value={authData.gender}
-                                            onChange={(e) => setAuthData(prev => ({ ...prev, gender: e.target.value }))}
+                                </div>
+
+                                {authMode === 'login' ? (
+                                    <div className="space-y-5">
+                                        <div className="text-center">
+                                            <h2 className="text-2xl font-bold text-gray-900 mb-2">Bon retour !</h2>
+                                            <p className="text-sm text-gray-600">Connectez-vous avec votre code famille</p>
+                                        </div>
+                                        <input
+                                            type="text"
+                                            placeholder="Code famille (6 caractères)"
+                                            className="w-full border-2 border-gray-200 rounded-2xl px-4 py-4 text-center uppercase text-2xl font-bold tracking-widest focus:border-blue-500 focus:outline-none transition-all"
+                                            maxLength="6"
+                                            value={authData.code}
+                                            onChange={(e) => setAuthData(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
+                                        />
+                                        <button
+                                            onClick={() => handleLogin()}
+                                            className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:shadow-xl transition-all active:scale-95"
                                         >
-                                            <option value="boy">Garçon</option>
-                                            <option value="girl">Fille</option>
-                                        </select>
+                                            <i className="fas fa-sign-in-alt mr-2"></i>
+                                            Se connecter
+                                        </button>
+                                        <div className="relative my-6">
+                                            <div className="absolute inset-0 flex items-center">
+                                                <div className="w-full border-t border-gray-300"></div>
+                                            </div>
+                                            <div className="relative flex justify-center text-sm">
+                                                <span className="px-4 bg-white text-gray-500">ou</span>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setAuthMode('create')}
+                                            className="w-full bg-white border-2 border-gray-300 text-gray-700 py-4 rounded-2xl font-bold text-lg hover:bg-gray-50 transition-all active:scale-95"
+                                        >
+                                            <i className="fas fa-plus-circle mr-2"></i>
+                                            Créer un compte famille
+                                        </button>
                                     </div>
-                                    <input
-                                        type="text"
-                                        placeholder="Noms des parents"
-                                        className="w-full border rounded-xl px-4 py-3"
-                                        value={authData.parents}
-                                        onChange={(e) => setAuthData(prev => ({ ...prev, parents: e.target.value }))}
-                                    />
-                                    <button
-                                        onClick={handleCreateAccount}
-                                        className="w-full bg-green-500 text-white py-3 rounded-xl font-medium"
-                                    >
-                                        Créer la famille
-                                    </button>
-                                    <button
-                                        onClick={() => setAuthMode('login')}
-                                        className="w-full bg-gray-200 text-gray-700 py-3 rounded-xl font-medium"
-                                    >
-                                        Retour
-                                    </button>
-                                </div>
-                            )}
+                                ) : (
+                                    <div className="space-y-4">
+                                        <div className="text-center mb-4">
+                                            <button
+                                                onClick={() => setAuthMode('login')}
+                                                className="text-blue-600 hover:text-blue-700 font-medium text-sm flex items-center gap-2 mx-auto"
+                                            >
+                                                <i className="fas fa-arrow-left"></i>
+                                                Retour
+                                            </button>
+                                            <h2 className="text-2xl font-bold text-gray-900 mt-3 mb-2">Nouvelle famille</h2>
+                                            <p className="text-sm text-gray-600">Créez votre espace de suivi</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                <i className="fas fa-baby mr-2 text-pink-500"></i>
+                                                Prénom du bébé *
+                                            </label>
+                                            <input
+                                                type="text"
+                                                placeholder="Ex: Emma, Lucas..."
+                                                className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:outline-none transition-all"
+                                                value={authData.babyName}
+                                                onChange={(e) => setAuthData(prev => ({ ...prev, babyName: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                    <i className="fas fa-calendar mr-2 text-blue-500"></i>
+                                                    Date de naissance *
+                                                </label>
+                                                <input
+                                                    type="date"
+                                                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:outline-none transition-all"
+                                                    value={authData.birthDate}
+                                                    onChange={(e) => setAuthData(prev => ({ ...prev, birthDate: e.target.value }))}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                    <i className="fas fa-clock mr-2 text-purple-500"></i>
+                                                    Heure
+                                                </label>
+                                                <input
+                                                    type="time"
+                                                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:outline-none transition-all"
+                                                    value={authData.birthTime}
+                                                    onChange={(e) => setAuthData(prev => ({ ...prev, birthTime: e.target.value }))}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                    <i className="fas fa-weight mr-2 text-green-500"></i>
+                                                    Poids (kg)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="3.290"
+                                                    step="0.001"
+                                                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:outline-none transition-all"
+                                                    value={authData.birthWeight}
+                                                    onChange={(e) => setAuthData(prev => ({ ...prev, birthWeight: e.target.value }))}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                    <i className="fas fa-ruler-vertical mr-2 text-orange-500"></i>
+                                                    Taille (cm)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="48"
+                                                    className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:outline-none transition-all"
+                                                    value={authData.birthHeight}
+                                                    onChange={(e) => setAuthData(prev => ({ ...prev, birthHeight: e.target.value }))}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                <i className="fas fa-venus-mars mr-2 text-indigo-500"></i>
+                                                Sexe
+                                            </label>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAuthData(prev => ({ ...prev, gender: 'boy' }))}
+                                                    className={`py-3 px-4 rounded-xl font-semibold transition-all ${authData.gender === 'boy'
+                                                            ? 'bg-blue-500 text-white shadow-lg'
+                                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                        }`}
+                                                >
+                                                    👦 Garçon
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAuthData(prev => ({ ...prev, gender: 'girl' }))}
+                                                    className={`py-3 px-4 rounded-xl font-semibold transition-all ${authData.gender === 'girl'
+                                                            ? 'bg-pink-500 text-white shadow-lg'
+                                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                        }`}
+                                                >
+                                                    👧 Fille
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                                <i className="fas fa-users mr-2 text-purple-500"></i>
+                                                Noms des parents
+                                            </label>
+                                            <input
+                                                type="text"
+                                                placeholder="Papa & Maman"
+                                                className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:outline-none transition-all"
+                                                value={authData.parents}
+                                                onChange={(e) => setAuthData(prev => ({ ...prev, parents: e.target.value }))}
+                                            />
+                                        </div>
+
+                                        <button
+                                            onClick={handleCreateAccount}
+                                            className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-4 rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl transition-all active:scale-95 mt-6"
+                                        >
+                                            <i className="fas fa-check-circle mr-2"></i>
+                                            Créer la famille
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                       {/* Popup de succès création famille */}
+{showSuccessModal && (
+    <div 
+        className="fixed z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center"
+        style={{ 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            margin: 0, 
+            padding: '1rem' 
+        }}
+    >
+        <div 
+            className="bg-white rounded-3xl w-full shadow-2xl relative overflow-hidden"
+            style={{ 
+                maxWidth: '28rem',
+                maxHeight: '90vh', 
+                overflowY: 'auto' 
+            }}
+        >
+            {/* Confettis décoratifs */}
+            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-green-400 via-emerald-500 to-teal-400"></div>
+            
+            {/* Contenu */}
+            <div className="p-6 sm:p-8 text-center">
+                {/* Icône de succès */}
+                <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 sm:mb-6 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center shadow-xl">
+                    <i className="fas fa-check text-white text-3xl sm:text-4xl"></i>
+                </div>
+                
+                {/* Titre */}
+                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
+                    🎉 Famille créée !
+                </h3>
+                <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
+                    Conservez précieusement votre code
+                </p>
+                
+                {/* Code à copier */}
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-4 sm:p-6 mb-4 sm:mb-6 border-2 border-blue-200">
+                    <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3 font-medium">Votre code famille :</p>
+                    <div className="text-3xl sm:text-4xl font-black text-blue-600 tracking-widest mb-3 sm:mb-4 font-mono">
+                        {newFamilyCode}
+                    </div>
+                    <button
+                        onClick={(e) => {
+                            navigator.clipboard.writeText(newFamilyCode);
+                            const btn = e.currentTarget;
+                            const originalHTML = btn.innerHTML;
+                            btn.innerHTML = '<i class="fas fa-check mr-2"></i> Copié !';
+                            btn.className = 'w-full bg-green-500 text-white py-3 rounded-xl font-bold text-sm shadow-lg transition-all';
+                            setTimeout(() => {
+                                btn.innerHTML = originalHTML;
+                                btn.className = 'w-full bg-blue-500 text-white py-3 rounded-xl font-bold text-sm shadow-lg hover:bg-blue-600 transition-all active:scale-95';
+                            }, 2000);
+                        }}
+                        className="w-full bg-blue-500 text-white py-3 rounded-xl font-bold text-sm shadow-lg hover:bg-blue-600 transition-all active:scale-95"
+                    >
+                        <i className="fas fa-copy mr-2"></i>
+                        Copier le code
+                    </button>
+                </div>
+                
+                {/* Avertissement */}
+                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6 text-left">
+                    <div className="flex items-start gap-2 sm:gap-3">
+                        <i className="fas fa-exclamation-triangle text-yellow-600 text-base sm:text-lg mt-0.5 flex-shrink-0"></i>
+                        <div className="flex-1">
+                            <p className="text-xs sm:text-sm font-bold text-gray-800 mb-1">Important</p>
+                            <p className="text-[10px] sm:text-xs text-gray-600">
+                                Ce code permet à toute votre famille d'accéder au suivi. 
+                                Notez-le dans un endroit sûr !
+                            </p>
                         </div>
                     </div>
+                </div>
+                
+                {/* Bouton continuer */}
+                <button
+                    onClick={() => {
+                        setShowSuccessModal(false);
+                        setShowAuth(false);
+                    }}
+                    className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 sm:py-4 rounded-2xl font-bold text-base sm:text-lg shadow-xl hover:shadow-2xl transition-all active:scale-95"
+                >
+                    Commencer le suivi ! 🚀
+                </button>
+            </div>
+        </div>
+    </div>
+)} </>
                 );
             }
-
             // Navigation tabs
             const TabButton = ({ id, label, icon, active, onClick }) => (
                 <button
