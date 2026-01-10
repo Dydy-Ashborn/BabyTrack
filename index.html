@@ -337,16 +337,34 @@
                 category: '',
                 food: '',
                 quantity: '',
+                reaction: '',
                 notes: ''
             });
+            const [isMixMode, setIsMixMode] = useState(false);
+            const [mixFoods, setMixFoods] = useState([]); // Les aliments du mix
+            const [mixNewFood, setMixNewFood] = useState(''); // Le nouvel aliment à tester
+            const [mixNewFoodCategory, setMixNewFoodCategory] = useState('');
+            const [diversificationSearch, setDiversificationSearch] = useState('');
+            const [diversificationSort, setDiversificationSort] = useState('recent');
+            const [diversificationPage, setDiversificationPage] = useState(0);
+            const [diversificationLastDoc, setDiversificationLastDoc] = useState(null);
+            const [diversificationHasMore, setDiversificationHasMore] = useState(true);
+            const [diversificationLoading, setDiversificationLoading] = useState(false);
+            const ITEMS_PER_PAGE = 10;
 
             const [wardrobe, setWardrobe] = useState([]);
             const [wardrobeData, setWardrobeData] = useState({
                 type: '',
                 size: '',
                 quantity: 1,
+                color: '',
                 notes: ''
             });
+            const [wardrobePage, setWardrobePage] = useState(0);
+            const [wardrobeLastDoc, setWardrobeLastDoc] = useState(null);
+            const [wardrobeHasMore, setWardrobeHasMore] = useState(true);
+            const [wardrobeLoading, setWardrobeLoading] = useState(false);
+            const WARDROBE_ITEMS_PER_PAGE = 20; // 20 articles par page
             // États pour le suivi du sommeil
             const [sleepSessions, setSleepSessions] = useState([]);
             const [currentSleep, setCurrentSleep] = useState(null); // Session en cours
@@ -1296,32 +1314,9 @@
                 unsubscribers.push(stocksUnsubscribe);
 
                 // Diversification
-                const diversificationUnsubscribe = db.collection('diversification')
-                    .where('familyCode', '==', familyCode)
-                    .orderBy('timestamp', 'desc')
-                    .limit(30)
-                    .onSnapshot((snapshot) => {
-                        const diversificationData = [];
-                        snapshot.forEach((doc) => {
-                            diversificationData.push({ id: doc.id, ...doc.data() });
-                        });
-                        setDiversificationEntries(diversificationData);
-                    });
-                unsubscribers.push(diversificationUnsubscribe);
 
-                // Wardrobe
-                const wardrobeUnsubscribe = db.collection('wardrobe')
-                    .where('familyCode', '==', familyCode)
-                    .orderBy('timestamp', 'desc')
-                    .limit(30)
-                    .onSnapshot((snapshot) => {
-                        const wardrobeData = [];
-                        snapshot.forEach((doc) => {
-                            wardrobeData.push({ id: doc.id, ...doc.data() });
-                        });
-                        setWardrobe(wardrobeData);
-                    });
-                unsubscribers.push(wardrobeUnsubscribe);
+
+
 
                 // Sleep
                 const sleepUnsubscribe = db.collection('sleep_sessions')
@@ -1421,7 +1416,6 @@
                 };
             }, [showMoreMenu, showPlusMenu]);
             // Calcul du prochain biberon
-            // Calcul du prochain biberon
             useEffect(() => {
                 if (entries.length === 0) {
                     setNextFeedingInfo(null);
@@ -1434,12 +1428,20 @@
 
                 if (lastFeeding) {
                     const lastFeedingTime = new Date(lastFeeding.timestamp);
-                    const nextFeedingTime = new Date(lastFeedingTime.getTime() + (feedingInterval * 60 * 60 * 1000));
 
-                    setNextFeedingInfo({
-                        lastFeeding: lastFeedingTime,
-                        nextTime: nextFeedingTime
-                    });
+                    // Si l'intervalle est désactivé (0), on met null pour nextTime
+                    if (feedingInterval === 0) {
+                        setNextFeedingInfo({
+                            lastFeeding: lastFeedingTime,
+                            nextTime: null // Pas de prochain biberon calculé
+                        });
+                    } else {
+                        const nextFeedingTime = new Date(lastFeedingTime.getTime() + (feedingInterval * 60 * 60 * 1000));
+                        setNextFeedingInfo({
+                            lastFeeding: lastFeedingTime,
+                            nextTime: nextFeedingTime
+                        });
+                    }
                 } else {
                     setNextFeedingInfo(null);
                 }
@@ -1540,7 +1542,7 @@
 
                 if (isIOS && user && !isLoading) {
                     const isStandalone = window.navigator.standalone === true;
-                    const currentVersion = '1.2.0';
+                    const currentVersion = '1.8.0';
                     const lastSeenVersion = localStorage.getItem('babytrack_last_version');
 
                     if (!isStandalone) {
@@ -1559,7 +1561,7 @@
             useEffect(() => {
                 if (!user || isLoading) return;
 
-                const currentVersion = '1.2.0';
+                const currentVersion = '1.8.0';
                 const lastSeenVersion = localStorage.getItem('babytrack_last_version');
 
                 if (lastSeenVersion !== currentVersion) {
@@ -1571,8 +1573,16 @@
                     return () => clearTimeout(timer);
                 }
             }, [user, isLoading]);
+
+
+            // Charger les aliments de diversification quand on arrive sur la vue food
+            useEffect(() => {
+                if (currentView === 'food' && user?.code) {
+                    loadDiversificationPage(0, true);
+                }
+            }, [currentView, diversificationSort, user?.code]);
             const closeUpdatePopup = () => {
-                const currentVersion = '1.2.0';
+                const currentVersion = '1.8.0';
                 localStorage.setItem('babytrack_last_version', currentVersion);
                 setShowUpdatePopup(false);
                 // Débloquer le scroll du body
@@ -1590,14 +1600,15 @@
                 const familyCode = generateCode();
                 const familyData = {
                     code: familyCode,
-                    babyName,
-                    birthDate,
-                    birthTime: birthTime || '06:00',
+                    name: authData.name,
+                    babyName: babyName,
+                    birthDate: birthDate,
                     birthWeight: parseFloat(birthWeight) || 3.290,
                     birthHeight: parseInt(birthHeight) || 48,
                     parents: parents || 'Papa & Maman',
                     gender: gender,
                     accomplishments: {}, // Initialiser avec un objet vide
+                    feedingInterval: 3, // Intervalle par défaut
                     createdAt: new Date().toISOString()
                 };
                 try {
@@ -1640,6 +1651,13 @@
                         }
                         if (userData.lastHeightUpdate) {
                             setLastHeightUpdate(userData.lastHeightUpdate);
+                        }
+
+                        // Charger l'intervalle de biberon
+                        if (userData.feedingInterval !== undefined) {
+                            setFeedingInterval(userData.feedingInterval);
+                        } else {
+                            setFeedingInterval(3); // Valeur par défaut si pas défini
                         }
 
                         localStorage.setItem('familyCode', code.toUpperCase());
@@ -2198,68 +2216,219 @@ ${allExportEntries.length > 0
                     console.error('Erreur suppression tire-lait:', error);
                 }
             };
-            // Gestion de la diversification
             const saveDiversificationEntry = async () => {
-                const { category, food, quantity, notes } = diversificationData;
+                if (isMixMode) {
+                    if (mixFoods.length === 0 || !mixNewFood || !mixNewFoodCategory || !diversificationData.quantity) {
+                        alert('Veuillez remplir tous les champs du mix');
+                        return;
+                    }
 
-                if (!category || !food || !quantity) {
-                    alert('Catégorie, aliment et quantité obligatoires');
+                    const entry = {
+                        familyCode: user.code,
+                        isMix: true,
+                        mixFoods: mixFoods,
+                        newFood: mixNewFood,
+                        newFoodCategory: mixNewFoodCategory,
+                        category: mixNewFoodCategory,
+                        food: mixNewFood,
+                        displayName: `${mixNewFood} (mix)`,
+                        quantity: diversificationData.quantity,
+                        reaction: diversificationData.reaction || '',
+                        notes: diversificationData.notes || '',
+                        timestamp: new Date().toISOString()
+                    };
+
+                    try {
+                        await db.collection('diversification').add(entry);
+                        setDiversificationData({ category: '', food: '', quantity: '', reaction: '', notes: '' });
+                        setMixFoods([]);
+                        setMixNewFood('');
+                        setMixNewFoodCategory('');
+                        setIsMixMode(false);
+                        setDiversificationPage(0);
+                        setDiversificationLastDoc(null);
+                        loadDiversificationPage(0, true);
+                    } catch (error) {
+                        console.error('Erreur sauvegarde:', error);
+                        alert('Erreur lors de la sauvegarde');
+                    }
+                } else {
+                    const { category, food, quantity, reaction, notes } = diversificationData;
+                    if (!category || !food || !quantity) {
+                        alert('Veuillez remplir tous les champs obligatoires');
+                        return;
+                    }
+
+                    const entry = {
+                        familyCode: user.code,
+                        isMix: false,
+                        category,
+                        food,
+                        displayName: food,
+                        quantity,
+                        reaction: reaction || '',
+                        notes: notes || '',
+                        timestamp: new Date().toISOString()
+                    };
+
+                    try {
+                        await db.collection('diversification').add(entry);
+                        setDiversificationData({ category: '', food: '', quantity: '', reaction: '', notes: '' });
+                        setDiversificationPage(0);
+                        setDiversificationLastDoc(null);
+                        loadDiversificationPage(0, true);
+                    } catch (error) {
+                        console.error('Erreur sauvegarde:', error);
+                        alert('Erreur lors de la sauvegarde');
+                    }
+                }
+            };
+            const loadDiversificationPage = async (pageNumber = 0, isInitial = false) => {
+                if (diversificationLoading) return;
+                setDiversificationLoading(true);
+
+                try {
+                    let query = db.collection('diversification')
+                        .where('familyCode', '==', user.code);
+
+                    // Tri
+                    if (diversificationSort === 'recent') {
+                        query = query.orderBy('timestamp', 'desc');
+                    } else {
+                        query = query.orderBy('food', 'asc');
+                    }
+
+                    // Pagination
+                    if (pageNumber > 0 && diversificationLastDoc) {
+                        query = query.startAfter(diversificationLastDoc);
+                    }
+
+                    query = query.limit(ITEMS_PER_PAGE);
+
+                    const snapshot = await query.get();
+
+                    if (snapshot.empty) {
+                        setDiversificationHasMore(false);
+                        setDiversificationLoading(false);
+                        return;
+                    }
+
+                    const newEntries = [];
+                    snapshot.forEach(doc => {
+                        newEntries.push({ id: doc.id, ...doc.data() });
+                    });
+
+                    // Garder le dernier document pour la pagination suivante
+                    setDiversificationLastDoc(snapshot.docs[snapshot.docs.length - 1]);
+
+                    // Si moins de résultats que demandé, c'est la fin
+                    setDiversificationHasMore(snapshot.docs.length === ITEMS_PER_PAGE);
+
+                    // Remplacer ou ajouter les entrées selon si c'est initial ou non
+                    if (isInitial || pageNumber === 0) {
+                        setDiversificationEntries(newEntries);
+                    } else {
+                        setDiversificationEntries(prev => [...prev, ...newEntries]);
+                    }
+
+                    setDiversificationPage(pageNumber);
+                } catch (error) {
+                    console.error('Erreur chargement diversification:', error);
+                }
+
+                setDiversificationLoading(false);
+            };
+            const searchDiversification = async (searchTerm) => {
+                if (!searchTerm.trim()) {
+                    // Si recherche vide, recharger normalement
+                    loadDiversificationPage(0, true);
                     return;
                 }
 
-                const entry = {
-                    category,
-                    food,
-                    quantity,
-                    notes,
-                    timestamp: new Date().toISOString(),
-                    familyCode: user.code
-                };
+                setDiversificationLoading(true);
 
                 try {
-                    await db.collection('diversification').add(entry);
-                    setDiversificationData({ category: '', food: '', quantity: '', notes: '' });
+                    // Recherche côté client car Firebase ne supporte pas LIKE
+                    // On charge tous les résultats et on filtre (optimisation possible avec Algolia/Meilisearch)
+                    const snapshot = await db.collection('diversification')
+                        .where('familyCode', '==', user.code)
+                        .get();
 
+                    const allEntries = [];
+                    snapshot.forEach(doc => {
+                        allEntries.push({ id: doc.id, ...doc.data() });
+                    });
+
+                    // Filtrer côté client
+                    const filtered = allEntries.filter(entry =>
+                        entry.food.toLowerCase().includes(searchTerm.toLowerCase())
+                    );
+
+                    // Trier
+                    if (diversificationSort === 'recent') {
+                        filtered.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    } else {
+                        filtered.sort((a, b) => a.food.localeCompare(b.food));
+                    }
+
+                    setDiversificationEntries(filtered);
+                    setDiversificationHasMore(false); // Pas de pagination en mode recherche
                 } catch (error) {
-                    console.error('Erreur sauvegarde diversification:', error);
-                    alert('Erreur lors de la sauvegarde');
+                    console.error('Erreur recherche:', error);
                 }
-            };
+
+                setDiversificationLoading(false);
+            }; {/* Vue Diversification avec pagination Firebase */ }
+            {
+            }
             const deleteDiversificationEntry = async (entryId) => {
                 if (!confirm('Supprimer cette entrée ?')) return;
 
                 try {
                     await db.collection('diversification').doc(entryId).delete();
+
+                    // Recharger la liste après suppression
+                    setDiversificationPage(0);
+                    setDiversificationLastDoc(null);
+                    loadDiversificationPage(0, true);
                 } catch (error) {
                     console.error('Erreur suppression diversification:', error);
+                    alert('Erreur lors de la suppression');
                 }
             };
             // Gestion de la garde-robe
             const saveWardrobeItem = async () => {
-                const { type, size, quantity, notes } = wardrobeData;
+                const { type, size, quantity, color, notes } = wardrobeData;
 
                 if (!type || !size) {
-                    alert('Type de vêtement et taille obligatoires');
+                    alert('Veuillez remplir les champs obligatoires');
                     return;
                 }
 
                 const item = {
+                    familyCode: user.code,
                     type,
                     size,
-                    quantity: parseInt(quantity),
-                    notes,
-                    familyCode: user.code,
+                    quantity: parseInt(quantity) || 1,
+                    color: color || '',
+                    notes: notes || '',
                     timestamp: new Date().toISOString()
                 };
 
                 try {
                     if (editingWardrobeId) {
                         await db.collection('wardrobe').doc(editingWardrobeId).update(item);
+                        setEditingWardrobeId(null);
                     } else {
                         await db.collection('wardrobe').add(item);
                     }
-                    setWardrobeData({ type: '', size: '', quantity: 1, notes: '' });
-                    setEditingWardrobeId(null);
+
+                    setWardrobeData({ type: '', size: '', quantity: 1, color: '', notes: '' });
+
+                    // Recharger la première page
+                    setWardrobePage(0);
+                    setWardrobeLastDoc(null);
+                    loadWardrobePage(0, true);
                 } catch (error) {
                     console.error('Erreur sauvegarde garde-robe:', error);
                     alert('Erreur lors de la sauvegarde');
@@ -2270,9 +2439,66 @@ ${allExportEntries.length > 0
 
                 try {
                     await db.collection('wardrobe').doc(itemId).delete();
+
+                    // Recharger
+                    loadWardrobePage(0, true);
                 } catch (error) {
-                    console.error('Erreur suppression garde-robe:', error);
+                    console.error('Erreur suppression:', error);
+                    alert('Erreur lors de la suppression');
                 }
+            };
+            // Fonction pour charger la garde-robe avec pagination
+            const loadWardrobePage = async (pageNumber = 0, isInitial = false) => {
+                if (wardrobeLoading) return;
+                setWardrobeLoading(true);
+
+                try {
+                    let query = db.collection('wardrobe')
+                        .where('familyCode', '==', user.code)
+                        .orderBy('size', 'asc'); // Tri par taille
+
+                    // Pagination
+                    if (pageNumber > 0 && wardrobeLastDoc) {
+                        query = query.startAfter(wardrobeLastDoc);
+                    }
+
+                    query = query.limit(WARDROBE_ITEMS_PER_PAGE);
+
+                    const snapshot = await query.get();
+
+                    if (snapshot.empty) {
+                        setWardrobeHasMore(false);
+                        setWardrobeLoading(false);
+                        if (isInitial) {
+                            setWardrobe([]);
+                        }
+                        return;
+                    }
+
+                    const newItems = [];
+                    snapshot.forEach(doc => {
+                        newItems.push({ id: doc.id, ...doc.data() });
+                    });
+
+                    // Garder le dernier document pour la pagination suivante
+                    setWardrobeLastDoc(snapshot.docs[snapshot.docs.length - 1]);
+
+                    // Si moins de résultats que demandé, c'est la fin
+                    setWardrobeHasMore(snapshot.docs.length === WARDROBE_ITEMS_PER_PAGE);
+
+                    // Remplacer ou ajouter les entrées
+                    if (isInitial || pageNumber === 0) {
+                        setWardrobe(newItems);
+                    } else {
+                        setWardrobe(prev => [...prev, ...newItems]);
+                    }
+
+                    setWardrobePage(pageNumber);
+                } catch (error) {
+                    console.error('Erreur chargement garde-robe:', error);
+                }
+
+                setWardrobeLoading(false);
             };
             // Fonctions pour les stocks
             const saveMilkPowderDate = async () => {
@@ -2363,21 +2589,57 @@ ${allExportEntries.length > 0
                 const durationMs = now - startTime;
                 const durationMinutes = Math.max(1, Math.floor(durationMs / (1000 * 60)));
 
-                const updatedSession = {
-                    endTime: now.toISOString(),
-                    duration: durationMinutes,
-                    status: 'completed',
-                    timestamp: now.toISOString()
-                };
-
                 try {
-                    await db.collection('sleep_sessions').doc(currentSleep.id).update(updatedSession);
+                    // Vérifier si la session traverse minuit
+                    const startDay = new Date(startTime);
+                    startDay.setHours(0, 0, 0, 0);
+                    const endDay = new Date(now);
+                    endDay.setHours(0, 0, 0, 0);
+
+                    const crossesMidnight = endDay.getTime() > startDay.getTime();
+
+                    if (crossesMidnight) {
+                        // Créer minuit entre les deux dates
+                        const midnight = new Date(startTime);
+                        midnight.setHours(24, 0, 0, 0); // Minuit du jour suivant
+
+                        // Calculer les durées
+                        const durationBeforeMidnight = Math.floor((midnight - startTime) / (1000 * 60));
+                        const durationAfterMidnight = Math.floor((now - midnight) / (1000 * 60));
+
+                        // Mettre à jour la session actuelle jusqu'à minuit
+                        await db.collection('sleep_sessions').doc(currentSleep.id).update({
+                            endTime: midnight.toISOString(),
+                            duration: durationBeforeMidnight,
+                            status: 'completed',
+                            timestamp: startTime.toISOString()
+                        });
+
+                        // Créer une nouvelle session de minuit jusqu'à maintenant
+                        await db.collection('sleep_sessions').add({
+                            familyCode: user.code,
+                            startTime: midnight.toISOString(),
+                            endTime: now.toISOString(),
+                            duration: durationAfterMidnight,
+                            timestamp: midnight.toISOString(),
+                            status: 'completed'
+                        });
+
+                    } else {
+                        // Session normale qui ne traverse pas minuit
+                        await db.collection('sleep_sessions').doc(currentSleep.id).update({
+                            endTime: now.toISOString(),
+                            duration: durationMinutes,
+                            status: 'completed',
+                            timestamp: now.toISOString()
+                        });
+                    }
+
                     setCurrentSleep(null);
                 } catch (error) {
                     alert('Erreur lors de l\'arrêt');
                 }
             };
-
             const saveSleepEdit = async () => {
                 const { startTime, endTime, date } = sleepData;
 
@@ -2409,20 +2671,69 @@ ${allExportEntries.length > 0
                     return;
                 }
 
-                const sleepSession = {
-                    familyCode: user.code,
-                    startTime: start.toISOString(),
-                    endTime: end.toISOString(),
-                    duration: durationMinutes,
-                    timestamp: start.toISOString(),
-                    status: 'completed'
-                };
-
                 try {
-                    if (editingSleepId) {
-                        await db.collection('sleep_sessions').doc(editingSleepId).update(sleepSession);
+                    // Vérifier si la session traverse minuit
+                    const startDay = new Date(start);
+                    startDay.setHours(0, 0, 0, 0);
+                    const endDay = new Date(end);
+                    endDay.setHours(0, 0, 0, 0);
+
+                    const crossesMidnight = endDay.getTime() > startDay.getTime();
+
+                    if (crossesMidnight) {
+                        // Créer minuit entre les deux dates
+                        const midnight = new Date(start);
+                        midnight.setHours(24, 0, 0, 0); // Minuit du jour suivant
+
+                        // Calculer les durées
+                        const durationBeforeMidnight = Math.floor((midnight - start) / (1000 * 60));
+                        const durationAfterMidnight = Math.floor((end - midnight) / (1000 * 60));
+
+                        // Session 1 : du début jusqu'à minuit (enregistrée le jour de début)
+                        const session1 = {
+                            familyCode: user.code,
+                            startTime: start.toISOString(),
+                            endTime: midnight.toISOString(),
+                            duration: durationBeforeMidnight,
+                            timestamp: start.toISOString(),
+                            status: 'completed'
+                        };
+
+                        // Session 2 : de minuit jusqu'à la fin (enregistrée le jour suivant)
+                        const session2 = {
+                            familyCode: user.code,
+                            startTime: midnight.toISOString(),
+                            endTime: end.toISOString(),
+                            duration: durationAfterMidnight,
+                            timestamp: midnight.toISOString(),
+                            status: 'completed'
+                        };
+
+                        // Si on est en mode édition, supprimer l'ancienne session
+                        if (editingSleepId) {
+                            await db.collection('sleep_sessions').doc(editingSleepId).delete();
+                        }
+
+                        // Ajouter les deux nouvelles sessions
+                        await db.collection('sleep_sessions').add(session1);
+                        await db.collection('sleep_sessions').add(session2);
+
                     } else {
-                        await db.collection('sleep_sessions').add(sleepSession);
+                        // Session normale qui ne traverse pas minuit
+                        const sleepSession = {
+                            familyCode: user.code,
+                            startTime: start.toISOString(),
+                            endTime: end.toISOString(),
+                            duration: durationMinutes,
+                            timestamp: start.toISOString(),
+                            status: 'completed'
+                        };
+
+                        if (editingSleepId) {
+                            await db.collection('sleep_sessions').doc(editingSleepId).update(sleepSession);
+                        } else {
+                            await db.collection('sleep_sessions').add(sleepSession);
+                        }
                     }
 
                     setSleepData({ startTime: '', endTime: '', date: getCurrentDate() });
@@ -2546,9 +2857,15 @@ ${allExportEntries.length > 0
                     }
                 }, [currentView, analyticsFilter, analyticsPeriod, entries, sleepSessions, breastfeedingEntries, breastPumpEntries]);
 
+                // Charger la garde-robe quand on arrive sur la vue wardrobe
+                useEffect(() => {
+                    if (currentView === 'wardrobe' && user?.code) {
+                        loadWardrobePage(0, true);
+                    }
+                }, [currentView, user?.code]);
                 // Fonction pour fermer la pop-up et marquer comme vue
                 const closeUpdatePopup = () => {
-                    const currentVersion = '1.2.0';
+                    const currentVersion = '1.8.0';
                     localStorage.setItem('babytrack_last_version', currentVersion);
                     setShowUpdatePopup(false);
                 };
@@ -2760,17 +3077,18 @@ ${allExportEntries.length > 0
 
 
             const editWardrobeItem = (itemId) => {
-                const item = wardrobe.find(w => w.id === itemId);
-                if (!item) return;
-
-                setWardrobeData({
-                    type: item.type,
-                    size: item.size,
-                    quantity: item.quantity,
-                    notes: item.notes || ''
-                });
-                setEditingWardrobeId(itemId);
-                setShowWardrobeModal(true);
+                const item = wardrobe.find(i => i.id === itemId);
+                if (item) {
+                    setWardrobeData({
+                        type: item.type,
+                        size: item.size,
+                        quantity: item.quantity,
+                        color: item.color || '',
+                        notes: item.notes || ''
+                    });
+                    setEditingWardrobeId(itemId);
+                    setShowWardrobeModal(true);
+                }
             };
 
             const editSleepSession = (sessionId) => {
@@ -3570,8 +3888,33 @@ ${allExportEntries.length > 0
                                                     {(() => {
                                                         const now = new Date();
                                                         const lastFeedingTime = new Date(nextFeedingInfo.lastFeeding);
-                                                        const nextFeedingTime = new Date(nextFeedingInfo.nextTime);
 
+                                                        // Formatage de l'heure exacte
+                                                        const formatExactTime = (date) => {
+                                                            return date.toLocaleTimeString('fr-FR', {
+                                                                hour: '2-digit',
+                                                                minute: '2-digit'
+                                                            });
+                                                        };
+
+                                                        // Si l'intervalle est désactivé
+                                                        if (feedingInterval === 0 || !nextFeedingInfo.nextTime) {
+                                                            return (
+                                                                <div className="bg-gradient-to-r from-green-500 to-green-600 text-white px-3 py-2 rounded-xl text-xs font-medium shadow-lg">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-sm">🍼</span>
+                                                                        <div className="flex-1">
+                                                                            <div className="font-bold">Donner quand {user?.babyName} réclame</div>                                                                            <div className="text-xs opacity-80">
+                                                                                Dernier à {formatExactTime(lastFeedingTime)}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        // Sinon, affichage normal avec calcul
+                                                        const nextFeedingTime = new Date(nextFeedingInfo.nextTime);
                                                         const minutesSinceLastFeeding = Math.floor((now - lastFeedingTime) / (1000 * 60));
                                                         const minutesUntilNextFeeding = Math.ceil((nextFeedingTime - now) / (1000 * 60));
 
@@ -3582,14 +3925,6 @@ ${allExportEntries.length > 0
                                                             const hours = Math.floor(minutes / 60);
                                                             const mins = minutes % 60;
                                                             return mins > 0 ? `${hours}h${mins.toString().padStart(2, '0')}` : `${hours}h`;
-                                                        };
-
-                                                        // Formatage de l'heure exacte
-                                                        const formatExactTime = (date) => {
-                                                            return date.toLocaleTimeString('fr-FR', {
-                                                                hour: '2-digit',
-                                                                minute: '2-digit'
-                                                            });
                                                         };
 
                                                         let bgClass, textClass, emoji, mainMessage;
@@ -3885,32 +4220,67 @@ ${allExportEntries.length > 0
                         {currentView === 'daily' && (
                             <>
 
-                                {/* Statistiques du jour uniquement */}
+                                {/* Statistiques du jour selon le filtre sélectionné */}
                                 {(() => {
-                                    const todayStats = getStats('daily');
+                                    const now = new Date();
+                                    let startDate, endDate;
 
-                                    // Stats allaitement aujourd'hui
+                                    switch (historyFilter) {
+                                        case 'today':
+                                            startDate = getDayStart(now);
+                                            endDate = getDayEnd(now);
+                                            break;
+                                        case 'yesterday':
+                                            const yesterday = new Date(now);
+                                            yesterday.setDate(yesterday.getDate() - 1);
+                                            startDate = getDayStart(yesterday);
+                                            endDate = getDayEnd(yesterday);
+                                            break;
+                                        case 'week':
+                                            startDate = new Date(now);
+                                            startDate.setDate(startDate.getDate() - 7);
+                                            startDate.setHours(0, 0, 0, 0);
+                                            endDate = getDayEnd(now);
+                                            break;
+                                        default: // 'all'
+                                            startDate = new Date(0);
+                                            endDate = new Date();
+                                    }
+
+                                    // Filtrer les entrées selon la période sélectionnée
+                                    const filteredEntries = entries.filter(entry => {
+                                        const entryDate = new Date(entry.timestamp);
+                                        return entryDate >= startDate && entryDate <= endDate;
+                                    });
+
+                                    // Stats normales (biberons, couches)
+                                    const feedingEntries = filteredEntries.filter(e => e.type === 'feeding');
+                                    const peeEntries = filteredEntries.filter(e => e.type === 'pee');
+                                    const poopEntries = filteredEntries.filter(e => e.type === 'poop');
+
+                                    const totalMilk = feedingEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0);
+                                    const feedingCount = feedingEntries.length;
+                                    const totalPees = peeEntries.length;
+                                    const totalPoops = poopEntries.length;
+
+                                    const todayStats = { totalMilk, feedingCount, totalPees, totalPoops };
+
+                                    // Stats allaitement selon la période sélectionnée
                                     const todayBreastfeeding = breastfeedingEntries.filter(entry => {
                                         const entryDate = new Date(entry.timestamp);
-                                        const today = getDayStart(new Date());
-                                        const todayEnd = getDayEnd(new Date());
-                                        return entry.status === 'completed' && entryDate >= today && entryDate <= todayEnd;
+                                        return entry.status === 'completed' && entryDate >= startDate && entryDate <= endDate;
                                     });
 
-                                    // Stats tire-lait aujourd'hui
+                                    // Stats tire-lait selon la période sélectionnée
                                     const todayBreastPump = breastPumpEntries.filter(entry => {
                                         const entryDate = new Date(entry.timestamp);
-                                        const today = getDayStart(new Date());
-                                        const todayEnd = getDayEnd(new Date());
-                                        return entryDate >= today && entryDate <= todayEnd;
+                                        return entryDate >= startDate && entryDate <= endDate;
                                     });
 
-                                    // Stats sommeil aujourd'hui
+                                    // Stats sommeil selon la période sélectionnée
                                     const todaySleep = sleepSessions.filter(session => {
                                         const sessionDate = new Date(session.startTime);
-                                        const today = getDayStart(new Date());
-                                        const todayEnd = getDayEnd(new Date());
-                                        return session.status === 'completed' && sessionDate >= today && sessionDate <= todayEnd;
+                                        return session.status === 'completed' && sessionDate >= startDate && sessionDate <= endDate;
                                     });
 
                                     const cards = [];
@@ -4372,12 +4742,7 @@ ${allExportEntries.length > 0
                                                                                         <i className="fas fa-baby text-emerald-600 text-xl"></i>
                                                                                     )}
 
-                                                                                    {/* Badge nouveau pour les entrées < 5 min */}
-                                                                                    {minutesAgo < 5 && (
-                                                                                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-                                                                                            <div className="w-2 h-2 bg-white rounded-full" />
-                                                                                        </div>
-                                                                                    )}
+
                                                                                 </div>
 
                                                                                 {/* Titre et infos */}
@@ -4676,28 +5041,36 @@ ${allExportEntries.length > 0
                                             <div className="flex items-center justify-between mb-2">
                                                 <div>
                                                     <div className="font-medium text-gray-800">Intervalle biberons</div>
-                                                    <div className="text-sm text-gray-600">Temps entre chaque biberon</div>
+                                                    <div className="text-sm text-gray-600">
+                                                        {feedingInterval === 0
+                                                            ? "À la demande, pas de rappel"
+                                                            : `Rappel toutes les ${feedingInterval}h`}
+                                                    </div>
                                                 </div>
-                                                <div className="text-lg font-bold text-blue-600">{feedingInterval}h</div>
+                                                <div className="text-lg font-bold text-blue-600">
+                                                    {feedingInterval === 0 ? '🍼' : `${feedingInterval}h`}
+                                                </div>
                                             </div>
-                                            <button
-                                                onClick={() => {
-                                                    const newInterval = prompt('Intervalle entre biberons (heures):', feedingInterval);
-                                                    if (newInterval && !isNaN(newInterval)) {
-                                                        setFeedingInterval(parseFloat(newInterval));
-                                                        if (user) {
-                                                            db.collection('families').doc(user.code).update({
-                                                                feedingInterval: parseFloat(newInterval)
-                                                            }).catch(console.error);
-                                                        }
+                                            <select
+                                                value={feedingInterval}
+                                                onChange={(e) => {
+                                                    const newInterval = Number(e.target.value);
+                                                    setFeedingInterval(newInterval);
+                                                    if (user) {
+                                                        db.collection('families').doc(user.code).update({
+                                                            feedingInterval: newInterval
+                                                        }).catch(console.error);
                                                     }
                                                 }}
-                                                className="w-full bg-blue-100 text-blue-700 py-2 rounded-lg text-sm font-medium"
+                                                className="w-full bg-white border border-gray-300 py-2 px-3 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
                                             >
-                                                Modifier
-                                            </button>
+                                                <option value="0">Désactiver (à la demande)</option>
+                                                <option value="2">2 heures</option>
+                                                <option value="3">3 heures</option>
+                                                <option value="4">4 heures</option>
+                                                <option value="5">5 heures</option>
+                                            </select>
                                         </div>
-
                                         {/* Export données */}
                                         <button
                                             onClick={() => setShowExportMenu(true)}
@@ -5502,25 +5875,34 @@ ${allExportEntries.length > 0
                                 </div>
                             </div>
                         )}
-                        {/* Modal Diversification */}
+                        {/* Modal Diversification - Version Gamifiée */}
                         {showFoodModal && (
                             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
-                                <div className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto relative">
+                                <div className="bg-gradient-to-br from-orange-50 to-yellow-50 w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto relative">
                                     {/* Header */}
-                                    <div className="sticky top-0 bg-gradient-to-r from-orange-500 to-orange-600 text-white p-6 rounded-t-3xl z-10">
-                                        <div className="flex items-center justify-between">
+                                    <div className={`sticky top-0 ${isMixMode ? 'bg-gradient-to-r from-purple-400 via-purple-500 to-pink-400' : 'bg-gradient-to-r from-orange-400 via-orange-500 to-yellow-400'} text-white p-6 rounded-t-3xl z-10 relative overflow-hidden`}>
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
+                                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-12 -translate-x-12"></div>
+
+                                        <div className="flex items-center justify-between relative z-10">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                                                    <i className="fas fa-utensils text-xl"></i>
+                                                <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                                                    <span className="text-3xl">{isMixMode ? '🥣' : '🍽️'}</span>
                                                 </div>
                                                 <div>
-                                                    <h3 className="text-xl font-bold">Nouvel aliment</h3>
-                                                    <p className="text-sm opacity-80">Diversification alimentaire</p>
+                                                    <h3 className="text-xl font-bold">{isMixMode ? 'Mix d\'aliments' : 'Découverte culinaire'}</h3>
+                                                    <p className="text-sm opacity-90">{isMixMode ? 'Mélange avec nouvel aliment' : 'Nouvel aliment testé !'}</p>
                                                 </div>
                                             </div>
                                             <button
-                                                onClick={() => setShowFoodModal(false)}
-                                                className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center"
+                                                onClick={() => {
+                                                    setShowFoodModal(false);
+                                                    setIsMixMode(false);
+                                                    setMixFoods([]);
+                                                    setMixNewFood('');
+                                                    setMixNewFoodCategory('');
+                                                }}
+                                                className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-all"
                                             >
                                                 <i className="fas fa-times text-lg"></i>
                                             </button>
@@ -5528,125 +5910,332 @@ ${allExportEntries.length > 0
                                     </div>
 
                                     {/* Contenu */}
-                                    <div className="p-6 space-y-6">
-                                        {/* Catégorie */}
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-3">Catégorie *</label>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                {[
-                                                    { id: 'legumes', label: 'Légumes', icon: 'fa-carrot', color: 'green' },
-                                                    { id: 'fruits', label: 'Fruits', icon: 'fa-apple-alt', color: 'red' },
-                                                    { id: 'viande', label: 'Viande/Poisson', icon: 'fa-drumstick-bite', color: 'purple' },
-                                                    { id: 'cereales', label: 'Céréales', icon: 'fa-bread-slice', color: 'yellow' }
-                                                ].map(cat => (
-                                                    <button
-                                                        key={cat.id}
-                                                        type="button"
-                                                        onClick={() => setDiversificationData(prev => ({ ...prev, category: cat.id }))}
-                                                        className={`p-3 rounded-2xl border-2 transition-all ${diversificationData.category === cat.id
-                                                            ? `border-${cat.color}-400 bg-${cat.color}-100`
-                                                            : 'border-gray-200 bg-gray-50'
-                                                            }`}
-                                                    >
-                                                        <div className={`text-2xl mb-2 text-${cat.color}-600`}>
-                                                            <i className={`fas ${cat.icon}`}></i>
+                                    <div className="p-6 space-y-5">
+                                        {/* MODE MIX */}
+                                        {isMixMode ? (
+                                            <>
+                                                {/* Aliments déjà connus */}
+                                                <div>
+                                                    <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                        <span className="text-lg">✅</span>
+                                                        Aliments déjà tolérés dans le mix
+                                                    </label>
+                                                    <div className="bg-white rounded-2xl p-4 border-2 border-gray-200">
+                                                        <div className="flex gap-2 mb-3">
+                                                            <input
+                                                                type="text"
+                                                                id="mixFoodInput"
+                                                                className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-purple-400 focus:outline-none"
+                                                                placeholder="Ex: Pomme, Banane..."
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter' && e.target.value.trim()) {
+                                                                        setMixFoods([...mixFoods, e.target.value.trim()]);
+                                                                        e.target.value = '';
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    const input = document.getElementById('mixFoodInput');
+                                                                    if (input && input.value.trim()) {
+                                                                        setMixFoods([...mixFoods, input.value.trim()]);
+                                                                        input.value = '';
+                                                                    }
+                                                                }}
+                                                                className="w-12 h-12 bg-gradient-to-r from-green-400 to-emerald-500 text-white rounded-xl flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                                                            >
+                                                                <i className="fas fa-plus text-xl"></i>
+                                                            </button>
                                                         </div>
-                                                        <div className="font-medium text-gray-800 text-sm">{cat.label}</div>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {mixFoods.map((food, index) => (
+                                                                <div key={index} className="bg-green-100 text-green-700 px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2">
+                                                                    <span>{food}</span>
+                                                                    <button
+                                                                        onClick={() => setMixFoods(mixFoods.filter((_, i) => i !== index))}
+                                                                        className="w-4 h-4 bg-green-200 rounded-full flex items-center justify-center hover:bg-green-300"
+                                                                    >
+                                                                        <i className="fas fa-times text-[8px]"></i>
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        {mixFoods.length === 0 && (
+                                                            <p className="text-xs text-gray-500 text-center py-2">Tapez un aliment et appuyez sur Entrée ou sur le bouton +</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {/* Catégorie du NOUVEL aliment */}
+                                                <div>
+                                                    <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                        <span className="text-lg">🆕</span>
+                                                        Catégorie du NOUVEL aliment à tester
+                                                    </label>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        {[
+                                                            { id: 'legumes', label: 'Légumes', icon: '🥕', gradient: 'from-green-400 to-emerald-500', bgLight: 'bg-green-50', border: 'border-green-400' },
+                                                            { id: 'fruits', label: 'Fruits', icon: '🍎', gradient: 'from-red-400 to-pink-500', bgLight: 'bg-red-50', border: 'border-red-400' },
+                                                            { id: 'viande', label: 'Protéines', icon: '🍗', gradient: 'from-purple-400 to-indigo-500', bgLight: 'bg-purple-50', border: 'border-purple-400' },
+                                                            { id: 'cereales', label: 'Céréales', icon: '🌾', gradient: 'from-yellow-400 to-amber-500', bgLight: 'bg-yellow-50', border: 'border-yellow-400' }
+                                                        ].map(cat => (
+                                                            <button
+                                                                key={cat.id}
+                                                                type="button"
+                                                                onClick={() => setMixNewFoodCategory(cat.id)}
+                                                                className={`relative p-4 rounded-2xl border-3 transition-all transform hover:scale-105 ${mixNewFoodCategory === cat.id
+                                                                    ? `${cat.border} ${cat.bgLight} shadow-lg scale-105`
+                                                                    : 'border-gray-200 bg-white shadow-sm'
+                                                                    }`}
+                                                            >
+                                                                {mixNewFoodCategory === cat.id && (
+                                                                    <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center shadow-lg">
+                                                                        <i className="fas fa-check text-white text-xs"></i>
+                                                                    </div>
+                                                                )}
+                                                                <div className="text-4xl mb-2">{cat.icon}</div>
+                                                                <div className="font-bold text-gray-800 text-sm">{cat.label}</div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
 
-                                        {/* Nom de l'aliment */}
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Aliment testé *</label>
-                                            <input
-                                                type="text"
-                                                className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-orange-500 focus:outline-none"
-                                                placeholder="Ex: Carotte, Pomme, Courgette..."
-                                                value={diversificationData.food}
-                                                onChange={(e) => setDiversificationData(prev => ({ ...prev, food: e.target.value }))}
-                                            />
-                                        </div>
+                                                {/* Nom du NOUVEL aliment */}
+                                                <div>
+                                                    <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                                                        <span className="text-lg">✨</span>
+                                                        NOUVEL aliment à introduire
+                                                    </label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type="text"
+                                                            className="w-full px-4 py-4 pl-12 rounded-2xl border-3 border-purple-300 focus:border-purple-500 focus:outline-none text-lg font-medium shadow-sm bg-purple-50"
+                                                            placeholder="Ex: Poire (nouveau)"
+                                                            value={mixNewFood}
+                                                            onChange={(e) => setMixNewFood(e.target.value)}
+                                                        />
+                                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl">
+                                                            {mixNewFoodCategory === 'legumes' && '🥕'}
+                                                            {mixNewFoodCategory === 'fruits' && '🍎'}
+                                                            {mixNewFoodCategory === 'viande' && '🍗'}
+                                                            {mixNewFoodCategory === 'cereales' && '🌾'}
+                                                            {!mixNewFoodCategory && '🆕'}
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-xs text-purple-600 mt-2 font-medium">⚠️ Cet aliment sera marqué comme le nouvel aliment testé</p>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                {/* MODE NORMAL - Catégorie */}
+                                                <div>
+                                                    <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                        <span className="text-lg">🎯</span>
+                                                        Catégorie d'aliment
+                                                    </label>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        {[
+                                                            { id: 'legumes', label: 'Légumes', icon: '🥕', gradient: 'from-green-400 to-emerald-500', bgLight: 'bg-green-50', border: 'border-green-400' },
+                                                            { id: 'fruits', label: 'Fruits', icon: '🍎', gradient: 'from-red-400 to-pink-500', bgLight: 'bg-red-50', border: 'border-red-400' },
+                                                            { id: 'viande', label: 'Protéines', icon: '🍗', gradient: 'from-purple-400 to-indigo-500', bgLight: 'bg-purple-50', border: 'border-purple-400' },
+                                                            { id: 'cereales', label: 'Céréales', icon: '🌾', gradient: 'from-yellow-400 to-amber-500', bgLight: 'bg-yellow-50', border: 'border-yellow-400' }
+                                                        ].map(cat => (
+                                                            <button
+                                                                key={cat.id}
+                                                                type="button"
+                                                                onClick={() => setDiversificationData(prev => ({ ...prev, category: cat.id }))}
+                                                                className={`relative p-4 rounded-2xl border-3 transition-all transform hover:scale-105 ${diversificationData.category === cat.id
+                                                                    ? `${cat.border} ${cat.bgLight} shadow-lg scale-105`
+                                                                    : 'border-gray-200 bg-white shadow-sm'
+                                                                    }`}
+                                                            >
+                                                                {diversificationData.category === cat.id && (
+                                                                    <div className="absolute -top-2 -right-2 w-7 h-7 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center shadow-lg">
+                                                                        <i className="fas fa-check text-white text-xs"></i>
+                                                                    </div>
+                                                                )}
+                                                                <div className="text-4xl mb-2">{cat.icon}</div>
+                                                                <div className="font-bold text-gray-800 text-sm">{cat.label}</div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
 
-                                        {/* Quantité */}
+                                                {/* MODE NORMAL - Nom de l'aliment */}
+                                                <div>
+                                                    <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                                                        <span className="text-lg">✨</span>
+                                                        Quel aliment ?
+                                                    </label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type="text"
+                                                            className="w-full px-4 py-4 pl-12 rounded-2xl border-3 border-gray-200 focus:border-orange-400 focus:outline-none text-lg font-medium shadow-sm"
+                                                            placeholder="Ex: Carotte, Pomme..."
+                                                            value={diversificationData.food}
+                                                            onChange={(e) => setDiversificationData(prev => ({ ...prev, food: e.target.value }))}
+                                                        />
+                                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl">
+                                                            {diversificationData.category === 'legumes' && '🥕'}
+                                                            {diversificationData.category === 'fruits' && '🍎'}
+                                                            {diversificationData.category === 'viande' && '🍗'}
+                                                            {diversificationData.category === 'cereales' && '🌾'}
+                                                            {!diversificationData.category && '🍽️'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+
+                                        {/* Quantité - COMMUN */}
                                         <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-3">Quantité consommée *</label>
-                                            <div className="grid grid-cols-3 gap-3">
+                                            <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                <span className="text-lg">📊</span>
+                                                Quantité mangée
+                                            </label>
+                                            <div className="grid grid-cols-4 gap-2">
                                                 {[
-                                                    { id: 'petit', label: 'Petit', icon: '🤏', desc: 'Quelques cuillères' },
-                                                    { id: 'moyen', label: 'Moyen', icon: '🥄', desc: 'Plusieurs cuillères' },
-                                                    { id: 'grand', label: 'Grand', icon: '🍽️', desc: 'Bon appétit' }
-                                                ].map(qty => (
+                                                    { id: 'petite', emoji: '🥄', label: 'Petite', color: 'blue' },
+                                                    { id: 'moyenne', emoji: '🍴', label: 'Moyenne', color: 'green' },
+                                                    { id: 'grande', emoji: '🍽️', label: 'Grande', color: 'orange' },
+                                                    { id: 'complete', emoji: '⭐', label: 'Complète', color: 'purple' }
+                                                ].map(q => (
                                                     <button
-                                                        key={qty.id}
+                                                        key={q.id}
                                                         type="button"
-                                                        onClick={() => setDiversificationData(prev => ({ ...prev, quantity: qty.id }))}
-                                                        className={`p-3 rounded-2xl border-2 transition-all text-center ${diversificationData.quantity === qty.id
-                                                            ? 'border-orange-400 bg-orange-100'
-                                                            : 'border-gray-200 bg-gray-50'
+                                                        onClick={() => setDiversificationData(prev => ({ ...prev, quantity: q.id }))}
+                                                        className={`p-3 rounded-2xl border-2 transition-all ${diversificationData.quantity === q.id
+                                                            ? `border-${q.color}-400 bg-${q.color}-50`
+                                                            : 'border-gray-200 bg-white'
                                                             }`}
                                                     >
-                                                        <div className="text-2xl mb-1">{qty.icon}</div>
-                                                        <div className="font-medium text-gray-800 text-sm">{qty.label}</div>
-                                                        <div className="text-xs text-gray-500">{qty.desc}</div>
+                                                        <div className="text-2xl mb-1">{q.emoji}</div>
+                                                        <div className="text-xs font-bold text-gray-700">{q.label}</div>
                                                     </button>
                                                 ))}
                                             </div>
                                         </div>
 
-                                        {/* Remarques */}
+                                        {/* Réaction - COMMUN */}
                                         <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Remarques (optionnel)</label>
+                                            <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                <span className="text-lg">😊</span>
+                                                Réaction de bébé
+                                            </label>
+                                            <div className="grid grid-cols-5 gap-2">
+                                                {[
+                                                    { id: 'adore', emoji: '😍', label: 'Adoré' },
+                                                    { id: 'aime', emoji: '😊', label: 'Aimé' },
+                                                    { id: 'neutre', emoji: '😐', label: 'Neutre' },
+                                                    { id: 'bof', emoji: '😕', label: 'Bof' },
+                                                    { id: 'refuse', emoji: '😖', label: 'Refusé' }
+                                                ].map(reaction => (
+                                                    <button
+                                                        key={reaction.id}
+                                                        type="button"
+                                                        onClick={() => setDiversificationData(prev => ({ ...prev, reaction: reaction.id }))}
+                                                        className={`p-3 rounded-2xl border-2 transition-all transform hover:scale-110 ${diversificationData.reaction === reaction.id
+                                                            ? 'border-orange-400 bg-orange-50 scale-110'
+                                                            : 'border-gray-200 bg-white'
+                                                            }`}
+                                                    >
+                                                        <div className="text-2xl mb-1">{reaction.emoji}</div>
+                                                        <div className="text-xs font-medium text-gray-600">{reaction.label}</div>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Notes - COMMUN */}
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                                                <span className="text-lg">📝</span>
+                                                Notes (optionnel)
+                                            </label>
                                             <textarea
-                                                className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-orange-500 focus:outline-none"
+                                                className="w-full px-4 py-3 rounded-2xl border-3 border-gray-200 focus:border-orange-400 focus:outline-none shadow-sm"
                                                 rows="3"
-                                                placeholder="Réaction, texture donnée, commentaires..."
+                                                placeholder="Texture, préparation, commentaires..."
                                                 value={diversificationData.notes}
                                                 onChange={(e) => setDiversificationData(prev => ({ ...prev, notes: e.target.value }))}
                                             />
                                         </div>
 
+                                        {/* Bouton de validation */}
                                         <button
                                             onClick={() => {
-                                                if (!diversificationData.category || !diversificationData.food || !diversificationData.quantity) {
-                                                    alert('Veuillez remplir tous les champs obligatoires');
-                                                    return;
+                                                if (isMixMode) {
+                                                    console.log('=== VALIDATION MIX ===');
+                                                    console.log('mixFoods:', mixFoods);
+                                                    console.log('mixFoods.length:', mixFoods.length);
+                                                    console.log('mixNewFood:', mixNewFood);
+                                                    console.log('mixNewFoodCategory:', mixNewFoodCategory);
+                                                    console.log('quantity:', diversificationData.quantity);
+
+                                                    if (mixFoods.length === 0) {
+                                                        alert('⚠️ Vous devez ajouter au moins 1 aliment déjà toléré\n\n➡️ Tapez le nom (ex: Pomme) puis appuyez sur ENTRÉE');
+                                                        return;
+                                                    }
+                                                    if (!mixNewFood || mixNewFood.trim() === '') {
+                                                        alert('⚠️ Vous devez indiquer le NOUVEL aliment à introduire');
+                                                        return;
+                                                    }
+                                                    if (!mixNewFoodCategory || mixNewFoodCategory === '') {
+                                                        alert('⚠️ Vous devez choisir la catégorie du NOUVEL aliment (Légumes, Fruits, etc.)');
+                                                        return;
+                                                    }
+                                                    if (!diversificationData.quantity || diversificationData.quantity === '') {
+                                                        alert('⚠️ Vous devez indiquer la quantité mangée (Petite, Moyenne, Grande, Complète)');
+                                                        return;
+                                                    }
+
+                                                    console.log('✅ Validation OK, sauvegarde...');
+                                                } else {
+                                                    if (!diversificationData.category || !diversificationData.food || !diversificationData.quantity) {
+                                                        alert('Veuillez remplir tous les champs obligatoires');
+                                                        return;
+                                                    }
                                                 }
                                                 saveDiversificationEntry();
                                                 setShowFoodModal(false);
                                             }}
-                                            className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-4 rounded-2xl font-bold active:scale-95 transition-transform"
+                                            className={`w-full ${isMixMode ? 'bg-gradient-to-r from-purple-500 via-purple-600 to-pink-500' : 'bg-gradient-to-r from-orange-500 via-orange-600 to-yellow-500'} text-white py-5 rounded-2xl font-bold text-lg shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3`}
                                         >
-                                            Enregistrer l'aliment
+                                            <span className="text-2xl">🎉</span>
+                                            {isMixMode ? 'Valider le Mix !' : 'Valider la découverte !'}
+                                            <span className="text-2xl">🎉</span>
                                         </button>
                                     </div>
                                 </div>
                             </div>
                         )}
-                        {/* Modal Garde-robe */}
+                        {/* Modal Garde-robe - Version Gamifiée */}
                         {showWardrobeModal && (
                             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
-                                <div className="bg-white w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto relative">
-                                    {/* Header */}
-                                    <div className="sticky top-0 bg-gradient-to-r from-pink-500 to-pink-600 text-white p-6 rounded-t-3xl z-10">
-                                        <div className="flex items-center justify-between">
+                                <div className="bg-gradient-to-br from-pink-50 to-purple-50 w-full sm:max-w-md sm:rounded-3xl rounded-t-3xl max-h-[90vh] overflow-y-auto relative">
+                                    {/* Header avec animation */}
+                                    <div className="sticky top-0 bg-gradient-to-r from-pink-400 via-pink-500 to-purple-500 text-white p-6 rounded-t-3xl z-10 relative overflow-hidden">
+                                        {/* Éléments décoratifs animés */}
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
+                                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-12 -translate-x-12"></div>
+
+                                        <div className="flex items-center justify-between relative z-10">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                                                    <i className="fas fa-tshirt text-xl"></i>
+                                                <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm animate-bounce">
+                                                    <span className="text-3xl">👕</span>
                                                 </div>
                                                 <div>
                                                     <h3 className="text-xl font-bold">{editingWardrobeId ? 'Modifier l\'article' : 'Nouvel article'}</h3>
-                                                    <p className="text-sm opacity-80">Garde-robe de {user?.babyName}</p>
+                                                    <p className="text-sm opacity-90">Garde-robe de {user?.babyName}</p>
                                                 </div>
                                             </div>
                                             <button
                                                 onClick={() => {
                                                     setShowWardrobeModal(false);
                                                     setEditingWardrobeId(null);
-                                                    setWardrobeData({ type: '', size: '', quantity: 1, notes: '' });
+                                                    setWardrobeData({ type: '', size: '', quantity: 1, color: '', notes: '' });
                                                 }}
-                                                className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center"
+                                                className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-all"
                                             >
                                                 <i className="fas fa-times text-lg"></i>
                                             </button>
@@ -5654,81 +6243,180 @@ ${allExportEntries.length > 0
                                     </div>
 
                                     {/* Contenu */}
-                                    <div className="p-6 space-y-6">
+                                    <div className="p-6 space-y-5">
+                                        {/* Type de vêtement - Style grille avec icônes */}
                                         <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Type de vêtement *</label>
-                                            <select
-                                                className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-pink-500 focus:outline-none"
-                                                value={wardrobeData.type}
-                                                onChange={(e) => setWardrobeData(prev => ({ ...prev, type: e.target.value }))}
-                                            >
-                                                <option value="">Choisir...</option>
-                                                <option value="Body manche courte">Body manche courte</option>
-                                                <option value="Body manche longue">Body manche longue</option>
-                                                <option value="Bonnet">Bonnet</option>
-                                                <option value="Chaussettes">Chaussettes</option>
-                                                <option value="Gigoteuse">Gigoteuse</option>
-                                                <option value="Gilet">Gilet</option>
-                                                <option value="Pantalon">Pantalon</option>
-                                                <option value="Pull">Pull</option>
-                                                <option value="Pyjama">Pyjama</option>
-                                                <option value="Robe">Robe</option>
-                                                <option value="T-shirt manche courte">T-shirt manche courte</option>
-                                                <option value="T-shirt manche longue">T-shirt manche longue</option>
-                                                <option value="Autre">Autre</option>
-                                            </select>
+                                            <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                <span className="text-lg">👔</span>
+                                                Type de vêtement
+                                            </label>
+                                            <div className="grid grid-cols-3 gap-3">
+                                                {[
+                                                    { id: 'Body manche courte', emoji: '👕', label: 'Body MC' },
+                                                    { id: 'Body manche longue', emoji: '🧥', label: 'Body ML' },
+                                                    { id: 'Pyjama', emoji: '🌙', label: 'Pyjama' },
+                                                    { id: 'Pantalon', emoji: '👖', label: 'Pantalon' },
+                                                    { id: 'Pull', emoji: '🧶', label: 'Pull' },
+                                                    { id: 'Gilet', emoji: '🦺', label: 'Gilet' },
+                                                    { id: 'Robe', emoji: '👗', label: 'Robe' },
+                                                    { id: 'Gigoteuse', emoji: '💤', label: 'Gigoteuse' },
+                                                    { id: 'Chaussettes', emoji: '🧦', label: 'Chaussettes' },
+                                                    { id: 'Bonnet', emoji: '🧢', label: 'Bonnet' },
+                                                    { id: 'T-shirt manche courte', emoji: '👚', label: 'T-shirt MC' },
+                                                    { id: 'T-shirt manche longue', emoji: '🎽', label: 'T-shirt ML' }
+                                                ].map(type => (
+                                                    <button
+                                                        key={type.id}
+                                                        type="button"
+                                                        onClick={() => setWardrobeData(prev => ({ ...prev, type: type.id }))}
+                                                        className={`p-3 rounded-2xl border-3 transition-all transform hover:scale-105 ${wardrobeData.type === type.id
+                                                            ? 'border-pink-400 bg-pink-100 shadow-lg scale-105'
+                                                            : 'border-gray-200 bg-white shadow-sm'
+                                                            }`}
+                                                    >
+                                                        {wardrobeData.type === type.id && (
+                                                            <div className="absolute -top-2 -right-2 w-6 h-6 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center shadow-lg">
+                                                                <i className="fas fa-check text-white text-xs"></i>
+                                                            </div>
+                                                        )}
+                                                        <div className="text-2xl mb-1">{type.emoji}</div>
+                                                        <div className="font-medium text-gray-800 text-xs leading-tight">{type.label}</div>
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
 
+                                        {/* Taille - Style boutons ludiques */}
                                         <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Taille *</label>
-                                            <select
-                                                className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-pink-500 focus:outline-none"
-                                                value={wardrobeData.size}
-                                                onChange={(e) => setWardrobeData(prev => ({ ...prev, size: e.target.value }))}
-                                            >
-                                                <option value="">Choisir...</option>
-                                                <option value="Naissance">Naissance</option>
-                                                <option value="1 mois">1 mois</option>
-                                                <option value="3 mois">3 mois</option>
-                                                <option value="6 mois">6 mois</option>
-                                                <option value="9 mois">9 mois</option>
-                                                <option value="12 mois">12 mois</option>
-                                                <option value="18 mois">18 mois</option>
-                                                <option value="2 ans">2 ans</option>
-                                                <option value="3 ans">3 ans</option>
-                                            </select>
+                                            <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                <span className="text-lg">📏</span>
+                                                Taille
+                                            </label>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {[
+                                                    { id: 'Naissance', icon: '👶', gradient: 'from-blue-200 to-blue-300' },
+                                                    { id: '1 mois', icon: '🍼', gradient: 'from-cyan-200 to-cyan-300' },
+                                                    { id: '3 mois', icon: '🌸', gradient: 'from-teal-200 to-teal-300' },
+                                                    { id: '6 mois', icon: '🎈', gradient: 'from-green-200 to-green-300' },
+                                                    { id: '9 mois', icon: '🌟', gradient: 'from-yellow-200 to-yellow-300' },
+                                                    { id: '12 mois', icon: '🎂', gradient: 'from-orange-200 to-orange-300' },
+                                                    { id: '18 mois', icon: '🚀', gradient: 'from-red-200 to-red-300' },
+                                                    { id: '2 ans', icon: '🎪', gradient: 'from-pink-200 to-pink-300' },
+                                                    { id: '3 ans', icon: '🎨', gradient: 'from-purple-200 to-purple-300' }
+                                                ].map(size => (
+                                                    <button
+                                                        key={size.id}
+                                                        type="button"
+                                                        onClick={() => setWardrobeData(prev => ({ ...prev, size: size.id }))}
+                                                        className={`p-3 rounded-xl transition-all transform hover:scale-105 ${wardrobeData.size === size.id
+                                                            ? `bg-gradient-to-br ${size.gradient} shadow-lg scale-105 border-2 border-white`
+                                                            : 'bg-white border-2 border-gray-200'
+                                                            }`}
+                                                    >
+                                                        <div className="text-xl mb-1">{size.icon}</div>
+                                                        <div className="font-bold text-gray-800 text-xs">{size.id}</div>
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
 
+                                        {/* Couleur - Palette de couleurs */}
                                         <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Quantité</label>
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-pink-500 focus:outline-none"
-                                                value={wardrobeData.quantity}
-                                                onChange={(e) => setWardrobeData(prev => ({ ...prev, quantity: e.target.value }))}
-                                            />
+                                            <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                <span className="text-lg">🎨</span>
+                                                Couleur (optionnel)
+                                            </label>
+                                            <div className="grid grid-cols-6 gap-2">
+                                                {[
+                                                    { id: 'Blanc', color: 'bg-white border-2 border-gray-300', dot: 'bg-white' },
+                                                    { id: 'Rose', color: 'bg-pink-300', dot: 'bg-pink-300' },
+                                                    { id: 'Bleu', color: 'bg-blue-300', dot: 'bg-blue-300' },
+                                                    { id: 'Jaune', color: 'bg-yellow-300', dot: 'bg-yellow-300' },
+                                                    { id: 'Vert', color: 'bg-green-300', dot: 'bg-green-300' },
+                                                    { id: 'Rouge', color: 'bg-red-300', dot: 'bg-red-300' },
+                                                    { id: 'Violet', color: 'bg-purple-300', dot: 'bg-purple-300' },
+                                                    { id: 'Gris', color: 'bg-gray-400', dot: 'bg-gray-400' },
+                                                    { id: 'Noir', color: 'bg-gray-800', dot: 'bg-gray-800' },
+                                                    { id: 'Orange', color: 'bg-orange-300', dot: 'bg-orange-300' },
+                                                    { id: 'Beige', color: 'bg-amber-200', dot: 'bg-amber-200' },
+                                                    { id: 'Marron', color: 'bg-amber-700', dot: 'bg-amber-700' }
+                                                ].map(color => (
+                                                    <button
+                                                        key={color.id}
+                                                        type="button"
+                                                        onClick={() => setWardrobeData(prev => ({ ...prev, color: color.id }))}
+                                                        className={`w-12 h-12 rounded-full ${color.color} transition-all transform hover:scale-110 shadow-md relative ${wardrobeData.color === color.id ? 'ring-4 ring-pink-400 scale-110' : ''
+                                                            }`}
+                                                        title={color.id}
+                                                    >
+                                                        {wardrobeData.color === color.id && (
+                                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                                <i className="fas fa-check text-gray-700 text-lg drop-shadow"></i>
+                                                            </div>
+                                                        )}
+                                                    </button>
+                                                ))}
+                                            </div>
                                         </div>
 
+                                        {/* Quantité - Compteur visuel */}
                                         <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
+                                            <label className="block text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                                                <span className="text-lg">🔢</span>
+                                                Quantité
+                                            </label>
+                                            <div className="flex items-center justify-center gap-4 bg-white rounded-2xl p-4 shadow-sm border-2 border-gray-200">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setWardrobeData(prev => ({ ...prev, quantity: Math.max(1, prev.quantity - 1) }))}
+                                                    className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-400 to-pink-600 text-white font-bold text-xl shadow-lg active:scale-95 transition-transform"
+                                                >
+                                                    -
+                                                </button>
+                                                <div className="flex flex-col items-center">
+                                                    <div className="text-4xl font-bold text-gray-800">{wardrobeData.quantity}</div>
+                                                    <div className="text-xs text-gray-500">article{wardrobeData.quantity > 1 ? 's' : ''}</div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setWardrobeData(prev => ({ ...prev, quantity: prev.quantity + 1 }))}
+                                                    className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-400 to-pink-600 text-white font-bold text-xl shadow-lg active:scale-95 transition-transform"
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Notes */}
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                                                <span className="text-lg">📝</span>
+                                                Notes (optionnel)
+                                            </label>
                                             <textarea
-                                                className="w-full px-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-pink-500 focus:outline-none"
+                                                className="w-full px-4 py-3 rounded-2xl border-3 border-gray-200 focus:border-pink-400 focus:outline-none shadow-sm"
                                                 rows="3"
-                                                placeholder="Couleur, marque, état..."
+                                                placeholder="Marque, état, commentaires..."
                                                 value={wardrobeData.notes}
                                                 onChange={(e) => setWardrobeData(prev => ({ ...prev, notes: e.target.value }))}
                                             />
                                         </div>
 
+                                        {/* Bouton de validation */}
                                         <button
                                             onClick={() => {
+                                                if (!wardrobeData.type || !wardrobeData.size) {
+                                                    alert('Veuillez sélectionner un type et une taille');
+                                                    return;
+                                                }
                                                 saveWardrobeItem();
                                                 setShowWardrobeModal(false);
                                             }}
-                                            className="w-full bg-gradient-to-r from-pink-500 to-pink-600 text-white py-4 rounded-2xl font-bold active:scale-95 transition-transform"
+                                            className="w-full bg-gradient-to-r from-pink-500 via-pink-600 to-purple-500 text-white py-5 rounded-2xl font-bold text-lg shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3"
                                         >
+                                            <span className="text-2xl">✨</span>
                                             {editingWardrobeId ? 'Mettre à jour' : 'Ajouter à la garde-robe'}
+                                            <span className="text-2xl">✨</span>
                                         </button>
                                     </div>
                                 </div>
@@ -5926,182 +6614,460 @@ ${allExportEntries.length > 0
                                 </div>
                             </div>
                         )}
+                        {/* Vue Diversification avec pagination Firebase */}
                         {currentView === 'food' && (
                             <div className="space-y-4">
-                                {/* Header */}
-                                <div className="flex justify-between items-center">
-                                    <h2 className="text-xl font-bold text-gray-800">Diversification</h2>
+                                {/* Boutons ajouter EN HAUT */}
+                                <div className="grid grid-cols-2 gap-3">
                                     <button
-                                        onClick={() => setShowFoodModal(true)}
-                                        className="bg-orange-500 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-lg"
+                                        onClick={() => {
+                                            setIsMixMode(false);
+                                            setShowFoodModal(true);
+                                        }}
+                                        className="bg-gradient-to-r from-orange-500 to-yellow-500 text-white px-4 py-4 rounded-2xl text-sm font-bold shadow-xl active:scale-95 transition-transform flex flex-col items-center justify-center gap-2"
                                     >
-                                        + Aliment
+                                        <span className="text-2xl">🍎</span>
+                                        <span>Aliment seul</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setIsMixMode(true);
+                                            setMixFoods([]);
+                                            setMixNewFood('');
+                                            setMixNewFoodCategory('');
+                                            setShowFoodModal(true);
+                                        }}
+                                        className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-4 rounded-2xl text-sm font-bold shadow-xl active:scale-95 transition-transform flex flex-col items-center justify-center gap-2"
+                                    >
+                                        <span className="text-2xl">🥣</span>
+                                        <span>Mix d'aliments</span>
                                     </button>
                                 </div>
-
-                                {/* Liste des aliments testés */}
+                                {/* Barre de recherche et filtres */}
                                 <div className="space-y-3">
-                                    {diversificationEntries.length === 0 ? (
-                                        <div className="bg-white/90 rounded-2xl p-6 shadow-xl border border-white/30 text-center">
-                                            <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                                <i className="fas fa-utensils text-orange-600 text-2xl"></i>
-                                            </div>
-                                            <p className="text-gray-500 font-medium">Aucun aliment testé</p>
-                                            <p className="text-gray-400 text-sm">Commencez à enregistrer les tests</p>
-                                        </div>
-                                    ) : (
-                                        diversificationEntries.map(entry => (
-                                            <div key={entry.id} className="bg-white/90 rounded-2xl p-4 shadow-xl border border-white/30">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-12 h-12 bg-orange-100 rounded-2xl flex items-center justify-center">
-                                                            {entry.category === 'legumes' && <i className="fas fa-carrot text-orange-600"></i>}
-                                                            {entry.category === 'fruits' && <i className="fas fa-apple-alt text-orange-600"></i>}
-                                                            {entry.category === 'viande' && <i className="fas fa-drumstick-bite text-orange-600"></i>}
-                                                            {entry.category === 'cereales' && <i className="fas fa-bread-slice text-orange-600"></i>}
-                                                        </div>
-                                                        <div>
-                                                            <h5 className="font-semibold text-gray-800">{entry.food}</h5>
-                                                            <div className="flex items-center gap-2 text-sm">
-                                                                <span className="text-gray-600 capitalize">{entry.category}</span>
-                                                                <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                                                                <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs">
-                                                                    {entry.quantity}
+                                    {/* Recherche */}
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            placeholder="🔍 Rechercher un aliment..."
+                                            value={diversificationSearch}
+                                            onChange={(e) => {
+                                                setDiversificationSearch(e.target.value);
+                                                if (e.target.value.trim()) {
+                                                    searchDiversification(e.target.value);
+                                                } else {
+                                                    loadDiversificationPage(0, true);
+                                                }
+                                            }}
+                                            className="w-full px-4 py-3 pl-12 rounded-2xl border-2 border-orange-200 focus:border-orange-400 focus:outline-none bg-white shadow-sm"
+                                        />
+                                        <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-orange-400"></i>
+                                        {diversificationSearch && (
+                                            <button
+                                                onClick={() => {
+                                                    setDiversificationSearch('');
+                                                    loadDiversificationPage(0, true);
+                                                }}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center hover:bg-gray-300"
+                                            >
+                                                <i className="fas fa-times text-xs text-gray-600"></i>
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Boutons de tri */}
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                setDiversificationSort('recent');
+                                                setDiversificationPage(0);
+                                                setDiversificationLastDoc(null);
+                                            }}
+                                            className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all ${diversificationSort === 'recent'
+                                                ? 'bg-gradient-to-r from-orange-500 to-yellow-500 text-white shadow-lg'
+                                                : 'bg-white border-2 border-gray-200 text-gray-600'
+                                                }`}
+                                        >
+                                            <i className="far fa-clock mr-2"></i>
+                                            Plus récents
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setDiversificationSort('alpha');
+                                                setDiversificationPage(0);
+                                                setDiversificationLastDoc(null);
+                                            }}
+                                            className={`flex-1 py-2.5 rounded-xl font-bold text-sm transition-all ${diversificationSort === 'alpha'
+                                                ? 'bg-gradient-to-r from-orange-500 to-yellow-500 text-white shadow-lg'
+                                                : 'bg-white border-2 border-gray-200 text-gray-600'
+                                                }`}
+                                        >
+                                            <i className="fas fa-sort-alpha-down mr-2"></i>
+                                            A → Z
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Statistiques */}
+                                {diversificationEntries.length > 0 && !diversificationSearch && (
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {[
+                                            { category: 'legumes', icon: '🥕', label: 'Légumes', color: 'from-green-400 to-emerald-500' },
+                                            { category: 'fruits', icon: '🍎', label: 'Fruits', color: 'from-red-400 to-pink-500' },
+                                            { category: 'viande', icon: '🍗', label: 'Protéines', color: 'from-purple-400 to-indigo-500' },
+                                            { category: 'cereales', icon: '🌾', label: 'Céréales', color: 'from-yellow-400 to-amber-500' }
+                                        ].map(cat => {
+                                            const count = diversificationEntries.filter(e => e.category === cat.category).length;
+                                            return (
+                                                <div key={cat.category} className={`bg-gradient-to-br ${cat.color} rounded-2xl p-3 shadow-lg text-white text-center`}>
+                                                    <div className="text-2xl mb-1">{cat.icon}</div>
+                                                    <div className="text-2xl font-bold">{count}</div>
+                                                    <div className="text-xs opacity-90">{cat.label}</div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                {/* Liste des aliments */}
+                                {diversificationEntries.map((entry, index) => {
+                                    const categoryConfig = {
+                                        legumes: { icon: '🥕', gradient: 'from-green-400 to-emerald-500', bgLight: 'bg-green-50', border: 'border-green-300' },
+                                        fruits: { icon: '🍎', gradient: 'from-red-400 to-pink-500', bgLight: 'bg-red-50', border: 'border-red-300' },
+                                        viande: { icon: '🍗', gradient: 'from-purple-400 to-indigo-500', bgLight: 'bg-purple-50', border: 'border-purple-300' },
+                                        cereales: { icon: '🌾', gradient: 'from-yellow-400 to-amber-500', bgLight: 'bg-yellow-50', border: 'border-yellow-300' }
+                                    }[entry.category] || { icon: '🍽️', gradient: 'from-gray-400 to-gray-500', bgLight: 'bg-gray-50', border: 'border-gray-300' };
+
+                                    const reactionEmoji = {
+                                        adore: '😍',
+                                        aime: '😊',
+                                        neutre: '😐',
+                                        bof: '😕',
+                                        refuse: '😖'
+                                    }[entry.reaction] || '😊';
+
+                                    const daysSince = Math.floor((new Date() - new Date(entry.timestamp)) / (1000 * 60 * 60 * 24));
+
+                                    return (
+                                        <div
+                                            key={entry.id}
+                                            className={`${entry.isMix ? 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-300' : categoryConfig.bgLight + ' ' + categoryConfig.border} rounded-3xl p-4 shadow-xl border-2 relative overflow-hidden`}
+                                        >
+                                            <div className="flex items-start justify-between relative">
+                                                <div className="flex items-start gap-4 flex-1 pr-2">
+                                                    {/* Icône principale */}
+                                                    <div className={`w-16 h-16 ${entry.isMix ? 'bg-gradient-to-br from-purple-400 to-pink-500' : 'bg-gradient-to-br ' + categoryConfig.gradient} rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0`}>
+                                                        <span className="text-3xl">{entry.isMix ? '🥣' : categoryConfig.icon}</span>
+                                                    </div>
+
+                                                    <div className="flex-1 min-w-0">
+                                                        {/* Badge Mix */}
+                                                        {entry.isMix && (
+                                                            <div className="mb-2">
+                                                                <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-200 text-purple-800 border-2 border-purple-400">
+                                                                    🥣 Mix d'aliments
                                                                 </span>
                                                             </div>
+                                                        )}
+
+                                                        {/* Nom de l'aliment */}
+                                                        <h5 className="font-bold text-gray-900 text-xl mb-2">
+                                                            {entry.isMix ? entry.newFood : entry.food}
+                                                        </h5>
+
+                                                        {/* Aliments du mix */}
+                                                        {entry.isMix && entry.mixFoods && entry.mixFoods.length > 0 && (
+                                                            <div className="mb-3 bg-white/60 rounded-xl p-2 border border-purple-200">
+                                                                <p className="text-xs text-gray-600 mb-1 font-semibold">Mélangé avec :</p>
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {entry.mixFoods.map((food, i) => (
+                                                                        <span key={i} className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium border border-green-300">
+                                                                            {food}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                                <p className="text-xs text-purple-700 mt-2 font-bold">→ Nouvel aliment testé : {entry.newFood}</p>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Badges informations */}
+                                                        <div className="flex flex-wrap gap-2 mb-3">
+                                                            {/* Catégorie */}
+                                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${categoryConfig.bgLight} ${categoryConfig.border} border`}>
+                                                                {entry.category === 'legumes' ? 'Légume' :
+                                                                    entry.category === 'fruits' ? 'Fruit' :
+                                                                        entry.category === 'viande' ? 'Protéine' : 'Céréale'}
+                                                            </span>
+
+                                                            {/* Quantité */}
+                                                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700 border-2 border-orange-300">
+                                                                {entry.quantity === 'petite' && '🥄 Petite'}
+                                                                {entry.quantity === 'moyenne' && '🍴 Moyenne'}
+                                                                {entry.quantity === 'grande' && '🍽️ Grande'}
+                                                                {entry.quantity === 'complete' && '⭐ Complète'}
+                                                            </span>
+
+                                                            {/* Réaction */}
+                                                            {entry.reaction && (
+                                                                <span className="px-3 py-1.5 rounded-full font-bold bg-gradient-to-r from-yellow-100 to-amber-100 border-2 border-yellow-300 flex items-center gap-2 shadow-sm">
+                                                                    <span className="text-xl">{reactionEmoji}</span>
+                                                                    <span className="text-xs text-gray-700">
+                                                                        {entry.reaction === 'adore' && 'Adoré'}
+                                                                        {entry.reaction === 'aime' && 'Aimé'}
+                                                                        {entry.reaction === 'neutre' && 'Neutre'}
+                                                                        {entry.reaction === 'bof' && 'Bof'}
+                                                                        {entry.reaction === 'refuse' && 'Refusé'}
+                                                                    </span>
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Notes */}
+                                                        {entry.notes && (
+                                                            <div className="bg-white/80 backdrop-blur-sm rounded-xl p-3 shadow-sm border border-gray-200 mb-2">
+                                                                <p className="text-sm text-gray-700">💭 {entry.notes}</p>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Date */}
+                                                        <div className="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
+                                                            <i className="far fa-calendar"></i>
+                                                            {formatDate(entry.timestamp)}
+                                                            <span className="px-2 py-0.5 bg-gray-200 rounded-full font-medium">
+                                                                {daysSince === 0 ? 'Aujourd\'hui' :
+                                                                    daysSince === 1 ? 'Hier' :
+                                                                        daysSince < 7 ? `Il y a ${daysSince} jours` :
+                                                                            daysSince < 30 ? `Il y a ${Math.floor(daysSince / 7)} semaine${Math.floor(daysSince / 7) > 1 ? 's' : ''}` :
+                                                                                `Il y a ${Math.floor(daysSince / 30)} mois`}
+                                                            </span>
                                                         </div>
                                                     </div>
-                                                    <button
-                                                        onClick={() => deleteDiversificationEntry(entry.id)}
-                                                        className="text-red-500 hover:text-red-700 p-2"
-                                                    >
-                                                        <i className="fas fa-trash text-sm"></i>
-                                                    </button>
                                                 </div>
-                                                {entry.notes && (
-                                                    <div className="bg-gray-50 rounded-lg p-2 mt-2">
-                                                        <p className="text-sm text-gray-600">{entry.notes}</p>
-                                                    </div>
-                                                )}
-                                                <div className="text-xs text-gray-400 mt-2">
-                                                    {formatDate(entry.timestamp)}
-                                                </div>
+
+                                                {/* Bouton supprimer */}
+                                                <button
+                                                    onClick={() => deleteDiversificationEntry(entry.id)}
+                                                    className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center active:scale-95 transition-all hover:bg-red-200 flex-shrink-0 ml-2"
+                                                >
+                                                    <i className="fas fa-trash text-red-600"></i>
+                                                </button>
                                             </div>
-                                        ))
-                                    )}
-                                </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
+
                         )}
-                        {/* Vue Garde-robe */}
+                        {/* Vue Garde-robe avec pagination */}
                         {currentView === 'wardrobe' && (
                             <div className="space-y-4">
-                                {/* Header avec style unifié */}
-                                <div className="flex justify-end">
-                                    <button
-                                        onClick={() => setShowWardrobeModal(true)}
-                                        className="bg-pink-500 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-lg active:scale-95 transition-transform"
-                                    >
-                                        + Article
-                                    </button>
-                                </div>
-                                {/* Tri par taille */}
-                                {(() => {
-                                    const groupedBySize = {};
-                                    wardrobe.forEach(item => {
-                                        if (!groupedBySize[item.size]) {
-                                            groupedBySize[item.size] = [];
-                                        }
-                                        groupedBySize[item.size].push(item);
-                                    });
+                                {/* Bouton ajouter EN HAUT */}
+                                <button
+                                    onClick={() => setShowWardrobeModal(true)}
+                                    className="w-full bg-gradient-to-r from-pink-500 to-purple-500 text-white px-6 py-4 rounded-2xl text-base font-bold shadow-xl active:scale-95 transition-transform flex items-center justify-center gap-3"
+                                >
+                                    <span className="text-2xl">👕</span>
+                                    Ajouter un vêtement
+                                </button>
 
-                                    const sizes = Object.keys(groupedBySize).sort((a, b) => {
-                                        const sizeOrder = ['Naissance', '1 mois', '3 mois', '6 mois', '9 mois', '12 mois', '18 mois', '2 ans', '3 ans'];
-                                        return sizeOrder.indexOf(a) - sizeOrder.indexOf(b);
-                                    });
-
-                                    return sizes.length === 0 ? (
-                                        <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-white/30 text-center">
-                                            <div className="w-16 h-16 bg-pink-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                                <i className="fas fa-tshirt text-pink-600 text-2xl"></i>
-                                            </div>
-                                            <p className="text-gray-500 font-medium">Aucun vêtement enregistré</p>
-                                            <p className="text-gray-400 text-sm">Commencez à créer votre inventaire</p>
+                                {/* Chargement initial */}
+                                {wardrobeLoading && wardrobe.length === 0 ? (
+                                    <div className="bg-white rounded-2xl p-8 text-center">
+                                        <div className="animate-spin w-12 h-12 border-4 border-pink-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                                        <p className="text-gray-600">Chargement de la garde-robe...</p>
+                                    </div>
+                                ) : wardrobe.length === 0 ? (
+                                    <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-3xl p-8 shadow-xl border-2 border-pink-200 text-center">
+                                        <div className="w-20 h-20 bg-gradient-to-br from-pink-400 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                                            <span className="text-4xl">👕</span>
                                         </div>
-                                    ) : (
-                                        sizes.map(size => (
-                                            <div key={size} className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-xl border border-white/30">
-                                                <h3 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
-                                                    <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center">
-                                                        <i className="fas fa-ruler text-blue-600"></i>
+                                        <p className="text-gray-700 font-bold text-lg mb-2">Aucun vêtement enregistré</p>
+                                        <p className="text-gray-500 text-sm">Créez votre dressing ! 🌟</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* Statistiques globales */}
+                                        <div className="bg-gradient-to-br from-pink-100 to-purple-100 rounded-3xl p-4 shadow-lg border-2 border-pink-200">
+                                            <div className="grid grid-cols-3 gap-3">
+                                                <div className="text-center">
+                                                    <div className="text-3xl font-bold text-pink-600">{wardrobe.reduce((sum, item) => sum + (parseInt(item.quantity) || 1), 0)}</div>
+                                                    <div className="text-xs text-gray-600">articles</div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="text-3xl font-bold text-purple-600">{new Set(wardrobe.map(i => i.size)).size}</div>
+                                                    <div className="text-xs text-gray-600">tailles</div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="text-3xl font-bold text-indigo-600">
+                                                        {new Set(wardrobe.map(i => i.type)).size}
                                                     </div>
-                                                    Taille {size}
-                                                    <span className="text-sm bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-medium ml-auto">
-                                                        {groupedBySize[size].length} article{groupedBySize[size].length > 1 ? 's' : ''}
-                                                    </span>
-                                                </h3>
-                                                <div className="space-y-2">
-                                                    {groupedBySize[size].map(item => (
-                                                        <div key={item.id} className="bg-white/80 rounded-xl p-3 shadow-sm border border-white/50">
-                                                            <div className="flex items-center justify-between mb-2">
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
-                                                                        <i className={`text-lg text-purple-600 ${item.type === 'Body manche courte' ? 'fas fa-tshirt' :
-                                                                            item.type === 'Body manche longue' ? 'fas fa-tshirt' :
-                                                                                item.type === 'T-shirt manche courte' ? 'fas fa-tshirt' :
-                                                                                    item.type === 'T-shirt manche longue' ? 'fas fa-tshirt' :
-                                                                                        item.type === 'Pull' ? 'fas fa-user-tie' :
-                                                                                            item.type === 'Pyjama' ? 'fas fa-bed' :
-                                                                                                item.type === 'Pantalon' ? 'fas fa-child' :
-                                                                                                    item.type === 'Robe' ? 'fas fa-female' :
-                                                                                                        item.type === 'Gigoteuse' ? 'fas fa-baby' :
-                                                                                                            item.type === 'Chaussettes' ? 'fas fa-socks' :
-                                                                                                                item.type === 'Bonnet' ? 'fas fa-hat-wizard' :
-                                                                                                                    item.type === 'Gilet' ? 'fas fa-vest' :
-                                                                                                                        'fas fa-question'
-                                                                            }`}></i>
-                                                                    </div>
-                                                                    <div>
-                                                                        <span className="font-semibold text-gray-800">{item.type}</span>
-                                                                        <div className="flex items-center gap-2 mt-1">
-                                                                            <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full font-medium">
-                                                                                Quantité: {item.quantity}
-                                                                            </span>
+                                                    <div className="text-xs text-gray-600">types</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Liste par taille */}
+                                        {(() => {
+                                            const groupedBySize = {};
+                                            wardrobe.forEach(item => {
+                                                if (!groupedBySize[item.size]) {
+                                                    groupedBySize[item.size] = [];
+                                                }
+                                                groupedBySize[item.size].push(item);
+                                            });
+
+                                            const sizes = Object.keys(groupedBySize).sort((a, b) => {
+                                                const sizeOrder = ['Naissance', '1 mois', '3 mois', '6 mois', '9 mois', '12 mois', '18 mois', '2 ans', '3 ans'];
+                                                return sizeOrder.indexOf(a) - sizeOrder.indexOf(b);
+                                            });
+
+                                            const sizeConfig = {
+                                                'Naissance': { emoji: '👶', gradient: 'from-blue-400 to-blue-500', bgLight: 'bg-blue-50' },
+                                                '1 mois': { emoji: '🍼', gradient: 'from-cyan-400 to-cyan-500', bgLight: 'bg-cyan-50' },
+                                                '3 mois': { emoji: '🌸', gradient: 'from-teal-400 to-teal-500', bgLight: 'bg-teal-50' },
+                                                '6 mois': { emoji: '🎈', gradient: 'from-green-400 to-green-500', bgLight: 'bg-green-50' },
+                                                '9 mois': { emoji: '🌟', gradient: 'from-yellow-400 to-yellow-500', bgLight: 'bg-yellow-50' },
+                                                '12 mois': { emoji: '🎂', gradient: 'from-orange-400 to-orange-500', bgLight: 'bg-orange-50' },
+                                                '18 mois': { emoji: '🚀', gradient: 'from-red-400 to-red-500', bgLight: 'bg-red-50' },
+                                                '2 ans': { emoji: '🎪', gradient: 'from-pink-400 to-pink-500', bgLight: 'bg-pink-50' },
+                                                '3 ans': { emoji: '🎨', gradient: 'from-purple-400 to-purple-500', bgLight: 'bg-purple-50' }
+                                            };
+
+                                            const typeEmoji = {
+                                                'Body manche courte': '👕',
+                                                'Body manche longue': '🧥',
+                                                'Pyjama': '🌙',
+                                                'Pantalon': '👖',
+                                                'Pull': '🧶',
+                                                'Gilet': '🦺',
+                                                'Robe': '👗',
+                                                'Gigoteuse': '💤',
+                                                'Chaussettes': '🧦',
+                                                'Bonnet': '🧢',
+                                                'T-shirt manche courte': '👚',
+                                                'T-shirt manche longue': '🎽',
+                                                'Autre': '👔'
+                                            };
+
+                                            return sizes.map((size, sizeIndex) => {
+                                                const config = sizeConfig[size] || { emoji: '👔', gradient: 'from-gray-400 to-gray-500', bgLight: 'bg-gray-50' };
+
+                                                return (
+                                                    <div
+                                                        key={size}
+                                                        className={`${config.bgLight} rounded-3xl p-4 shadow-xl border-2 border-white relative overflow-hidden`}
+                                                    >
+
+                                                        <div className="flex items-center justify-between mb-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className={`w-12 h-12 bg-gradient-to-br ${config.gradient} rounded-2xl flex items-center justify-center shadow-lg`}>
+                                                                    <span className="text-2xl">{config.emoji}</span>
+                                                                </div>
+                                                                <div>
+                                                                    <h3 className="font-bold text-gray-900 text-lg">Taille {size}</h3>
+                                                                    <p className="text-xs text-gray-500">
+                                                                        {groupedBySize[size].reduce((sum, item) => sum + (parseInt(item.quantity) || 1), 0)} article{groupedBySize[size].length > 1 ? 's' : ''}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <div className={`px-3 py-1 rounded-full bg-gradient-to-r ${config.gradient} text-white font-bold text-sm shadow-lg`}>
+                                                                {groupedBySize[size].length}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="space-y-3">
+                                                            {groupedBySize[size].map((item) => (
+                                                                <div
+                                                                    key={item.id}
+                                                                    className="bg-white/80 backdrop-blur-sm rounded-2xl p-4 shadow-md border border-white/50 relative overflow-hidden hover:shadow-lg transition-all"
+                                                                >
+                                                                    <div className="flex items-start gap-4">
+                                                                        <div className={`w-14 h-14 bg-gradient-to-br ${config.gradient} rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0`}>
+                                                                            <span className="text-2xl">{typeEmoji[item.type] || '👔'}</span>
+                                                                        </div>
+
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <h5 className="font-bold text-gray-900 mb-2">{item.type}</h5>
+
+                                                                            <div className="flex flex-wrap gap-2 mb-2">
+                                                                                <span className={`px-2 py-1 rounded-lg text-xs font-bold bg-gradient-to-r ${config.gradient} text-white`}>
+                                                                                    {size}
+                                                                                </span>
+
+                                                                                {item.quantity > 1 && (
+                                                                                    <span className="px-3 py-1 rounded-lg text-xs font-bold bg-gradient-to-r from-pink-400 to-pink-600 text-white shadow-lg">
+                                                                                        x{item.quantity}
+                                                                                    </span>
+                                                                                )}
+
+                                                                                {item.color && (
+                                                                                    <span className="px-3 py-1 rounded-lg text-xs font-bold bg-white border-2 border-gray-200 text-gray-700 flex items-center gap-1">
+                                                                                        🎨 {item.color}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+
+                                                                            {item.notes && (
+                                                                                <div className="bg-gray-50/80 rounded-xl p-2 mt-2">
+                                                                                    <p className="text-xs text-gray-600">💭 {item.notes}</p>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div className="flex gap-2 flex-shrink-0">
+                                                                            <button
+                                                                                onClick={() => editWardrobeItem(item.id)}
+                                                                                className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center active:scale-95 transition-transform hover:bg-blue-200"
+                                                                            >
+                                                                                <i className="fas fa-edit text-blue-600"></i>
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => deleteWardrobeItem(item.id)}
+                                                                                className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center active:scale-95 transition-transform hover:bg-red-200"
+                                                                            >
+                                                                                <i className="fas fa-trash text-red-600"></i>
+                                                                            </button>
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex items-center gap-2">
-                                                                    <button
-                                                                        onClick={() => editWardrobeItem(item.id)}
-                                                                        className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center active:scale-95 transition-transform"
-                                                                    >
-                                                                        <i className="fas fa-edit text-blue-600 text-sm"></i>
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => deleteWardrobeItem(item.id)}
-                                                                        className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center active:scale-95 transition-transform"
-                                                                    >
-                                                                        <i className="fas fa-trash text-red-600 text-sm"></i>
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                            {item.notes && (
-                                                                <div className="bg-gray-50 rounded-lg p-2 mt-2">
-                                                                    <p className="text-sm text-gray-600 flex items-start gap-2">
-                                                                        <i className="fas fa-sticky-note text-gray-400 mt-0.5"></i>
-                                                                        {item.notes}
-                                                                    </p>
-                                                                </div>
-                                                            )}
+                                                            ))}
                                                         </div>
-                                                    ))}
-                                                </div>
+                                                    </div>
+                                                );
+                                            });
+                                        })()}
+
+                                        {/* Bouton "Charger plus" */}
+                                        {wardrobeHasMore && (
+                                            <button
+                                                onClick={() => loadWardrobePage(wardrobePage + 1)}
+                                                disabled={wardrobeLoading}
+                                                className="w-full bg-white border-2 border-pink-300 text-pink-600 px-6 py-4 rounded-2xl text-base font-bold shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-3 disabled:opacity-50"
+                                            >
+                                                {wardrobeLoading ? (
+                                                    <>
+                                                        <div className="animate-spin w-5 h-5 border-3 border-pink-500 border-t-transparent rounded-full"></div>
+                                                        Chargement...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <i className="fas fa-chevron-down"></i>
+                                                        Charger plus de vêtements
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
+
+                                        {/* Message de fin */}
+                                        {!wardrobeHasMore && wardrobe.length > 0 && (
+                                            <div className="text-center py-4">
+                                                <p className="text-gray-500 text-sm">✨ Toute la garde-robe est affichée</p>
                                             </div>
-                                        ))
-                                    );
-                                })()}
+                                        )}
+                                    </>
+                                )}
                             </div>
                         )}
-
                         {/* Formulaire principal biberon/couche */}
                         {showForm && (
                             <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
@@ -6357,9 +7323,25 @@ ${allExportEntries.length > 0
                                                     className="h-full bg-gradient-to-r from-yellow-400 via-orange-500 to-pink-500 rounded-full transition-all duration-1000 ease-out relative overflow-hidden"
                                                     style={{
                                                         width: `${(() => {
-                                                            const allMilestones = Object.values(accomplishmentData).flatMap(age => Object.values(age).flat()).length;
-                                                            const completed = Object.values(accomplishments).flat().filter(status => status === 'complete').length;
-                                                            return Math.round((completed / allMilestones) * 100);
+                                                            // Compter tous les exploits possibles
+                                                            let totalMilestones = 0;
+                                                            Object.values(accomplishmentData).forEach(ageCategories => {
+                                                                Object.values(ageCategories).forEach(items => {
+                                                                    totalMilestones += items.length;
+                                                                });
+                                                            });
+
+                                                            // Compter les exploits complétés
+                                                            let completedCount = 0;
+                                                            Object.values(accomplishments).forEach(ageAccomplishments => {
+                                                                if (ageAccomplishments && typeof ageAccomplishments === 'object') {
+                                                                    Object.values(ageAccomplishments).forEach(status => {
+                                                                        if (status === 'complete') completedCount++;
+                                                                    });
+                                                                }
+                                                            });
+
+                                                            return totalMilestones > 0 ? Math.round((completedCount / totalMilestones) * 100) : 0;
                                                         })()}%`
                                                     }}
                                                 >
@@ -6368,9 +7350,25 @@ ${allExportEntries.length > 0
                                             </div>
                                             <p className="text-xs font-bold text-gray-700">
                                                 {(() => {
-                                                    const allMilestones = Object.values(accomplishmentData).flatMap(age => Object.values(age).flat()).length;
-                                                    const completed = Object.values(accomplishments).flat().filter(status => status === 'complete').length;
-                                                    return `${completed} / ${allMilestones} compétences maîtrisées`;
+                                                    // Compter tous les exploits possibles
+                                                    let totalMilestones = 0;
+                                                    Object.values(accomplishmentData).forEach(ageCategories => {
+                                                        Object.values(ageCategories).forEach(items => {
+                                                            totalMilestones += items.length;
+                                                        });
+                                                    });
+
+                                                    // Compter les exploits complétés
+                                                    let completedCount = 0;
+                                                    Object.values(accomplishments).forEach(ageAccomplishments => {
+                                                        if (ageAccomplishments && typeof ageAccomplishments === 'object') {
+                                                            Object.values(ageAccomplishments).forEach(status => {
+                                                                if (status === 'complete') completedCount++;
+                                                            });
+                                                        }
+                                                    });
+
+                                                    return `${completedCount} / ${totalMilestones} compétences maîtrisées`;
                                                 })()}
                                             </p>
                                         </div>
@@ -6493,6 +7491,7 @@ ${allExportEntries.length > 0
                                 </div>
                             </div>
                         )}{/* Modal détail des accomplissements - Version gamifiée */}
+
                         {showAccomplishments && (
                             <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
                                 <div className="bg-white w-full sm:max-w-md rounded-3xl max-h-[90vh] overflow-y-auto relative shadow-2xl">
@@ -6806,69 +7805,143 @@ ${allExportEntries.length > 0
                         {showUpdatePopup && (
                             <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[100]" style={{ margin: 0, padding: '1rem' }}>
                                 <div className="bg-white rounded-3xl w-full max-w-sm max-h-[85vh] overflow-y-auto shadow-2xl relative">
-                                    {/* Confettis décoratifs */}
                                     <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"></div>
 
-                                    {/* Icône animée */}
                                     <div className="relative pt-6 pb-3">
                                         <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-400 to-purple-600 rounded-full flex items-center justify-center shadow-xl">
                                             <i className="fas fa-gift text-white text-3xl"></i>
                                         </div>
-                                        {/* Étoiles décoratives */}
                                         <div className="absolute top-6 left-1/4 text-yellow-400 text-xl">✨</div>
-                                        <div className="absolute top-10 right-1/4 text-yellow-400 text-lg" style={{ animationDelay: '0.3s' }}>⭐</div>
-                                        <div className="absolute top-14 left-1/3 text-yellow-400 text-base" style={{ animationDelay: '0.6s' }}>💫</div>
+                                        <div className="absolute top-10 right-1/4 text-yellow-400 text-lg">⭐</div>
+                                        <div className="absolute top-14 left-1/3 text-yellow-400 text-base">💫</div>
                                     </div>
 
-                                    {/* Contenu */}
                                     <div className="px-5 pb-5 text-center">
                                         <h3 className="text-xl font-bold text-gray-900 mb-1">
                                             🎉 Nouvelle mise à jour !
                                         </h3>
-                                        <p className="text-xs text-gray-600 mb-3">Version 1.2.0</p>
+                                        <p className="text-xs text-gray-600 mb-3">Version 1.8.0</p>
 
-                                        {/* Liste des nouveautés */}
-                                        <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-3 mb-4 text-left">
-                                            <h4 className="font-bold text-gray-800 mb-2 flex items-center gap-2 text-sm">
-                                                <i className="fas fa-sparkles text-purple-600"></i>
-                                                Quoi de neuf ?
-                                            </h4>
-                                            <div className="space-y-1.5 text-xs text-gray-700">
-                                                <div className="flex items-start gap-2">
-                                                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                        <i className="fas fa-check text-white text-[8px]"></i>
+                                        <div className="space-y-3 mb-4">
+                                            {/* Biberon à la demande */}
+                                            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-3 text-left border-2 border-green-200">
+                                                <h4 className="font-bold text-gray-800 mb-2 flex items-center gap-2 text-sm">
+                                                    <span className="text-lg">🍼</span>
+                                                    Biberon à la demande
+                                                </h4>
+                                                <div className="space-y-1.5 text-xs text-gray-700">
+                                                    <div className="flex items-start gap-2">
+                                                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                            <i className="fas fa-check text-white text-[8px]"></i>
+                                                        </div>
+                                                        <p><strong>Désactiver l'intervalle</strong> : Nouvelle option pour donner le biberon à la demande</p>
                                                     </div>
-                                                    <p><strong>Chargement rapide</strong> : L'application s'ouvre plus rapidement !</p>
+                                                    <div className="flex items-start gap-2">
+                                                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                            <i className="fas fa-check text-white text-[8px]"></i>
+                                                        </div>
+                                                        <p><strong>Message adapté</strong> : "Donner quand bébé réclame" s'affiche sur l'accueil</p>
+                                                    </div>
+                                                    <div className="flex items-start gap-2">
+                                                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                            <i className="fas fa-check text-white text-[8px]"></i>
+                                                        </div>
+                                                        <p><strong>Plus flexible</strong> : Parfait pour les bébés qui suivent leur propre rythme</p>
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-start gap-2">
-                                                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                        <i className="fas fa-check text-white text-[8px]"></i>
+                                            </div>
+
+                                            {/* Mix d'aliments */}
+                                            <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-2xl p-3 text-left border-2 border-orange-200">
+                                                <h4 className="font-bold text-gray-800 mb-2 flex items-center gap-2 text-sm">
+                                                    <span className="text-lg">🥣</span>
+                                                    Mix d'aliments
+                                                </h4>
+                                                <div className="space-y-1.5 text-xs text-gray-700">
+                                                    <div className="flex items-start gap-2">
+                                                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                            <i className="fas fa-check text-white text-[8px]"></i>
+                                                        </div>
+                                                        <p><strong>Aliments mélangés</strong> : Introduisez un nouvel aliment mélangé avec des aliments connus</p>
                                                     </div>
-                                                    <p><strong>Sommeil amélioré</strong> : Les siestes qui dépassent minuit sont parfaitement comptées !</p>
+                                                    <div className="flex items-start gap-2">
+                                                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                            <i className="fas fa-check text-white text-[8px]"></i>
+                                                        </div>
+                                                        <p><strong>Suivi précis</strong> : Notez quel aliment est nouveau dans le mix</p>
+                                                    </div>
+                                                    <div className="flex items-start gap-2">
+                                                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                            <i className="fas fa-check text-white text-[8px]"></i>
+                                                        </div>
+                                                        <p><strong>Interface simplifiée</strong> : Bouton + pour mobile</p>
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-start gap-2">
-                                                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                        <i className="fas fa-check text-white text-[8px]"></i>
+                                            </div>
+
+                                            {/* Exploits corrigés */}
+                                            <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl p-3 text-left border-2 border-yellow-200">
+                                                <h4 className="font-bold text-gray-800 mb-2 flex items-center gap-2 text-sm">
+                                                    <span className="text-lg">🏆</span>
+                                                    Exploits corrigés
+                                                </h4>
+                                                <div className="space-y-1.5 text-xs text-gray-700">
+                                                    <div className="flex items-start gap-2">
+                                                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                            <i className="fas fa-check text-white text-[8px]"></i>
+                                                        </div>
+                                                        <p><strong>Barre de progression</strong> : La barre progresse maintenant correctement quand vous validez des exploits</p>
                                                     </div>
-                                                    <p><strong>Âge précis</strong> : L'âge de bébé est calculé au jour près !</p>
+                                                    <div className="flex items-start gap-2">
+                                                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                            <i className="fas fa-check text-white text-[8px]"></i>
+                                                        </div>
+                                                        <p><strong>Compteur précis</strong> : Le nombre de compétences maîtrisées est exact</p>
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-start gap-2">
-                                                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                        <i className="fas fa-check text-white text-[8px]"></i>
+                                            </div>
+
+                                            {/* Diversification */}
+                                            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-3 text-left border-2 border-purple-200">
+                                                <h4 className="font-bold text-gray-800 mb-2 flex items-center gap-2 text-sm">
+                                                    <span className="text-lg">🍽️</span>
+                                                    Diversification améliorée
+                                                </h4>
+                                                <div className="space-y-1.5 text-xs text-gray-700">
+                                                    <div className="flex items-start gap-2">
+                                                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                            <i className="fas fa-check text-white text-[8px]"></i>
+                                                        </div>
+                                                        <p><strong>Suppression</strong> : Le bouton supprimer fonctionne maintenant</p>
                                                     </div>
-                                                    <p><strong>Modification facile</strong> : Corriger une session de sommeil est plus simple.</p>
+                                                    <div className="flex items-start gap-2">
+                                                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                            <i className="fas fa-check text-white text-[8px]"></i>
+                                                        </div>
+                                                        <p><strong>Affichage clair</strong> : Les mix d'aliments sont mieux présentés</p>
+                                                    </div>
                                                 </div>
-                                                <div className="flex items-start gap-2">
-                                                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                        <i className="fas fa-check text-white text-[8px]"></i>
+                                            </div>
+
+                                            {/* Performance */}
+                                            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-3 text-left border-2 border-blue-200">
+                                                <h4 className="font-bold text-gray-800 mb-2 flex items-center gap-2 text-sm">
+                                                    <span className="text-lg">⚡</span>
+                                                    Plus rapide
+                                                </h4>
+                                                <div className="space-y-1.5 text-xs text-gray-700">
+                                                    <div className="flex items-start gap-2">
+                                                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                            <i className="fas fa-check text-white text-[8px]"></i>
+                                                        </div>
+                                                        <p><strong>Chargement progressif</strong> : Les listes se chargent au fur et à mesure</p>
                                                     </div>
-                                                    <p><strong>Accomplissements repensés</strong> : Suivez les progrès avec animations et progression ludique !</p>
-                                                </div>
-                                                <div className="flex items-start gap-2">
-                                                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                                        <i className="fas fa-check text-white text-[8px]"></i>
+                                                    <div className="flex items-start gap-2">
+                                                        <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                                            <i className="fas fa-check text-white text-[8px]"></i>
+                                                        </div>
+                                                        <p><strong>Moins de données</strong> : L'app ne charge que ce dont vous avez besoin</p>
                                                     </div>
-                                                    <p><strong>Installation guidée</strong> : Guide pour installer l'app sur votre téléphone</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -6876,7 +7949,7 @@ ${allExportEntries.length > 0
                                         {/* Message de remerciement */}
                                         <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-2 mb-4">
                                             <p className="text-[10px] text-gray-600 leading-relaxed">
-                                                Merci d'utiliser BabyTrack !
+                                                Merci d'utiliser BabyTrack ! 💙
                                             </p>
                                         </div>
 
