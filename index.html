@@ -4255,13 +4255,12 @@ ${allExportEntries.length > 0
 
                                     // Stats normales (biberons, couches)
                                     const feedingEntries = filteredEntries.filter(e => e.type === 'feeding');
-                                    const peeEntries = filteredEntries.filter(e => e.type === 'pee');
-                                    const poopEntries = filteredEntries.filter(e => e.type === 'poop');
+                                    const diaperEntries = filteredEntries.filter(e => e.type === 'diaper');
 
                                     const totalMilk = feedingEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0);
                                     const feedingCount = feedingEntries.length;
-                                    const totalPees = peeEntries.length;
-                                    const totalPoops = poopEntries.length;
+                                    const totalPees = diaperEntries.filter(e => e.hasPee).length;
+                                    const totalPoops = diaperEntries.filter(e => e.hasPoop).length;
 
                                     const todayStats = { totalMilk, feedingCount, totalPees, totalPoops };
 
